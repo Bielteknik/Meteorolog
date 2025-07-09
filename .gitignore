@@ -1,0 +1,18 @@
+# Sanal ortam klasörü
+venv/
+
+# Python cache dosyaları
+__pycache__/
+*.pyc
+*.pyo
+
+# Ortam değişkenleri dosyası (GÜVENLİK İÇİN ÇOK ÖNEMLİ)
+.env
+
+# Veritabanı ve CSV dosyaları
+data/
+
+# IDE ve OS'e özel dosyalar
+.idea/
+.vscode/
+*.DS_Store
