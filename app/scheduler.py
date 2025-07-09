@@ -39,6 +39,7 @@ class JobScheduler:
         job_name = "Veri Toplama Döngüsü"
         print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] --- GÖREV BAŞLADI: {job_name} ---")
         
+        collected_readings = []
         try:
             # 1. Veri Toplama Patlaması (Data Burst)
             burst_duration = timedelta(minutes=settings.DATA_BURST_DURATION_MINUTES)
@@ -47,37 +48,44 @@ class JobScheduler:
             
             print(f"🔥 Veri toplama patlaması başladı ({burst_duration.total_seconds() / 60:.1f} dakika sürecek)...")
             
-            collected_readings = []
-            while datetime.now() < end_time:
-                reading = self.collector.collect_single_reading()
-                processed = self.processor.process(reading)
-                collected_readings.append(processed)
-                
-                h = f"{processed.height_mm:.2f}" if processed.height_mm is not None else "N/A"
-                w = f"{processed.weight_g:.2f}" if processed.weight_g is not None else "N/A"
-                t = f"{processed.temperature_c:.2f}" if processed.temperature_c is not None else "N/A"
-                
-                print(f"  -> Anlık Okuma: Yükseklik={h}mm, Ağırlık={w}g, Sıcaklık={t}°C")
-                
-                time.sleep(sample_interval)
+            # while döngüsünü try-except bloğuna alarak Ctrl+C'yi yakalıyoruz
+            try:
+                while datetime.now() < end_time:
+                    reading = self.collector.collect_single_reading()
+                    processed = self.processor.process(reading)
+                    collected_readings.append(processed)
+                    
+                    # Değerleri yazdırmak için güvenli formatlama
+                    h = f"{processed.height_mm:.2f}" if processed.height_mm is not None else "N/A"
+                    w = f"{processed.weight_g:.2f}" if processed.weight_g is not None else "N/A"
+                    t = f"{processed.temperature_c:.2f}" if processed.temperature_c is not None else "N/A"
+                    hu = f"{processed.humidity_perc:.2f}" if processed.humidity_perc is not None else "N/A"
+                    
+                    # Güncellenmiş print satırı
+                    print(f"  -> Anlık Okuma: Yükseklik={h}mm, Ağırlık={w}g, Sıcaklık={t}°C, Nem={hu}%")
+                    
+                    time.sleep(sample_interval)
+            except KeyboardInterrupt:
+                print("\n🛑 Veri toplama döngüsü kullanıcı tarafından yarıda kesildi.")
+                pass
             
-            print(f"🔥 Veri toplama patlaması bitti. Toplam {len(collected_readings)} örnek alındı.")
-
+            print(f"🔥 Veri toplama patlaması bitti/kesildi. Toplam {len(collected_readings)} örnek alındı.")
+    
             # 2. Analiz
             if not collected_readings:
                 print("⚠️ Döngüde hiç veri toplanamadı. Kayıt atlanıyor.")
                 return
-
+    
             print("📊 Toplanan veriler analiz ediliyor (ortalama hesaplanıyor)...")
             summary_reading = self.processor.analyze_readings(collected_readings)
-
+    
             # 3. Kayıt
             print("💾 Analiz sonucu veritabanına ve CSV'ye kaydediliyor...")
             self.db_service.save_reading(summary_reading)
-            self.csv_service.save_readings_to_csv([summary_reading]) # CSV servisi liste beklediği için
-
+            self.csv_service.save_readings_to_csv([summary_reading])
+    
             print("✅ Döngü başarıyla tamamlandı.")
-
+    
         except Exception as e:
             error_title = f"{job_name} Görev Hatası"
             error_details = f"Hata: {e}\n\nTraceback:\n{traceback.format_exc()}"
