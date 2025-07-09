@@ -2,12 +2,12 @@ import sqlite3
 import pathlib
 from typing import List
 
-from app.config import _settings
+from app.config import settings
 from app.models.schemas import ProcessedReading
 
 class DatabaseService:
     """Veritabanı işlemlerini (oluşturma, kaydetme) yönetir."""
-    def __init__(self, db_path: str = _settings.DATABASE_FILE_PATH):
+    def __init__(self, db_path: str = settings.DATABASE_FILE_PATH):
         self.db_path = db_path
         self._ensure_db_directory()
         self._create_table()
@@ -23,6 +23,7 @@ class DatabaseService:
         """Gerekli tabloyu oluşturur."""
         conn = self._get_connection()
         cursor = conn.cursor()
+        # YENİ DURUM SÜTUNLARI EKLENDİ
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS readings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +33,11 @@ class DatabaseService:
             temperature_c REAL,
             humidity_perc REAL,
             snow_height_mm REAL,
-            density_kg_m3 REAL
+            density_kg_m3 REAL,
+            height_status TEXT,
+            weight_status TEXT,
+            temperature_status TEXT,
+            humidity_status TEXT
         )
         ''')
         conn.commit()
@@ -42,15 +47,19 @@ class DatabaseService:
         """Tek bir işlenmiş okumayı veritabanına kaydeder."""
         conn = self._get_connection()
         cursor = conn.cursor()
+        # INSERT sorgusu YENİ SÜTUNLARI içerecek şekilde güncellendi
         cursor.execute('''
         INSERT INTO readings (
             timestamp, height_mm, weight_g, temperature_c, humidity_perc, 
-            snow_height_mm, density_kg_m3
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            snow_height_mm, density_kg_m3, height_status, weight_status,
+            temperature_status, humidity_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             reading.timestamp.isoformat(), reading.height_mm, reading.weight_g,
             reading.temperature_c, reading.humidity_perc,
-            reading.snow_height_mm, reading.density_kg_m3
+            reading.snow_height_mm, reading.density_kg_m3,
+            reading.height_status, reading.weight_status,
+            reading.temperature_status, reading.humidity_status
         ))
         conn.commit()
         conn.close()
@@ -63,14 +72,18 @@ class DatabaseService:
             (
                 r.timestamp.isoformat(), r.height_mm, r.weight_g,
                 r.temperature_c, r.humidity_perc,
-                r.snow_height_mm, r.density_kg_m3
+                r.snow_height_mm, r.density_kg_m3,
+                r.height_status, r.weight_status,
+                r.temperature_status, r.humidity_status
             ) for r in readings
         ]
+        # executemany sorgusu YENİ SÜTUNLARI içerecek şekilde güncellendi
         cursor.executemany('''
         INSERT INTO readings (
             timestamp, height_mm, weight_g, temperature_c, humidity_perc, 
-            snow_height_mm, density_kg_m3
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            snow_height_mm, density_kg_m3, height_status, weight_status,
+            temperature_status, humidity_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', data_to_insert)
         conn.commit()
         conn.close()

@@ -12,5 +12,12 @@ class SensorReading(BaseModel):
 
 class ProcessedReading(SensorReading):
     """Hesaplanmış değerleri de içeren işlenmiş veri modeli."""
+    # Hesaplanan değerler
     snow_height_mm: Optional[float] = None
     density_kg_m3: Optional[float] = None
+    
+    # Durum bilgileri (YENİ EKLENDİ)
+    height_status: str = "NO_DATA"
+    weight_status: str = "NO_DATA"
+    temperature_status: str = "NO_DATA"
+    humidity_status: str = "NO_DATA"
