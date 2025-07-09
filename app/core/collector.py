@@ -1,12 +1,14 @@
-from schedule import logger
 import serial
 import time
 from typing import Optional
+import logging
 
-from app.config import _settings
+from app.config import settings
 from app.models.schemas import SensorReading
 from app.sensors.manager import SensorManager
 from app.sensors.parsers import parse_height, parse_weight, parse_sht3x
+
+logger = logging.getLogger(__name__)
 
 class DataCollector:
     """
@@ -27,7 +29,7 @@ class DataCollector:
                     data = self.manager.height_ser.read(self.manager.height_ser.in_waiting)
                     height = parse_height(data)
             except serial.SerialException as e:
-                logger.error(f"HATA: Mesafe sensörü okunamadı - {e}")
+                logger.error(f"Failed to read from height sensor: {e}")
                 self.manager.is_height_connected = False # Bağlantı koptu
 
         # Ağırlık sensörü okuması
@@ -37,7 +39,7 @@ class DataCollector:
                     line = self.manager.weight_ser.readline()
                     weight = parse_weight(line)
             except serial.SerialException as e:
-                logger.error(f"HATA: Ağırlık sensörü okunamadı - {e}")
+                logger.error(f"Failed to read from weight sensor: {e}")
                 self.manager.is_weight_connected = False # Bağlantı koptu
 
         # Sıcaklık ve Nem sensörü okuması
@@ -45,16 +47,16 @@ class DataCollector:
             try:
                 # SHT3x'e ölçüm komutunu gönder
                 self.manager.i2c_bus.write_i2c_block_data(
-                    _settings.I2C_SHT3X_ADDRESS, 0x2C, [0x06]
+                    settings.I2C_SHT3X_ADDRESS, 0x2C, [0x06]
                 )
                 time.sleep(0.1) # Ölçüm için kısa bir bekleme
                 # Veriyi oku
                 data = self.manager.i2c_bus.read_i2c_block_data(
-                    _settings.I2C_SHT3X_ADDRESS, 0x00, 6
+                    settings.I2C_SHT3X_ADDRESS, 0x00, 6
                 )
                 temp, hum = parse_sht3x(data)
             except OSError as e:
-                logger.error(f"HATA: I2C sensörü okunamadı - {e}")
+                logger.error(f"Failed to read from I2C sensor: {e}")
                 self.manager.is_temp_hum_connected = False # Bağlantı koptu
 
         return SensorReading(

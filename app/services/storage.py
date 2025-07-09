@@ -1,15 +1,17 @@
-from venv import logger
 import pandas as pd
 import pathlib
 from datetime import datetime
 from typing import List
+import logging
 
-from app.config import _settings
+from app.config import settings
 from app.models.schemas import ProcessedReading
+
+logger = logging.getLogger(__name__)
 
 class CsvStorageService:
     """Verileri günlük CSV dosyalarına kaydeder."""
-    def __init__(self, folder_path: str = _settings.CSV_FOLDER):
+    def __init__(self, folder_path: str = settings.CSV_FOLDER):
         self.folder_path = pathlib.Path(folder_path)
         self._ensure_csv_directory()
     
@@ -26,7 +28,7 @@ class CsvStorageService:
             return
 
         today_str = datetime.now().strftime('%Y%m%d')
-        file_path = self.folder_path / f"{_settings.LOG_FILE_PREFIX}_{today_str}.csv"
+        file_path = self.folder_path / f"{settings.LOG_FILE_PREFIX}_{today_str}.csv"
 
         # Okuma listesini bir pandas DataFrame'e dönüştür
         df_new = pd.DataFrame([r.model_dump() for r in readings])
@@ -37,4 +39,4 @@ class CsvStorageService:
         # Dosya zaten varsa, başlık olmadan ekle. Yoksa, başlıkla oluştur.
         header = not file_path.exists()
         df_new.to_csv(file_path, mode='a', header=header, index=False)
-        logger.info(f"💾 {len(readings)} okuma '{file_path.name}' dosyasına kaydedildi.")
+        logger.debug(f"{len(readings)} reading(s) saved to '{file_path.name}'.")

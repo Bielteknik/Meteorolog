@@ -3,23 +3,25 @@ import socket
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from venv import logger
+import logging
 
-from app.config import _settings
+from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 class NotificationService:
     """E-posta ile bildirim gönderme servisi."""
     def __init__(self):
-        if not _settings.EMAIL_ENABLED:
+        if not settings.EMAIL_ENABLED:
             self.enabled = False
             return
 
         self.enabled = True
-        self.smtp_server = _settings.EMAIL_SMTP_SERVER
-        self.smtp_port = _settings.EMAIL_SMTP_PORT
-        self.sender_email = _settings.EMAIL_SENDER
-        self.sender_password = _settings.EMAIL_PASSWORD
-        self.recipient_email = _settings.EMAIL_RECIPIENT
+        self.smtp_server = settings.EMAIL_SMTP_SERVER
+        self.smtp_port = settings.EMAIL_SMTP_PORT
+        self.sender_email = settings.EMAIL_SENDER
+        self.sender_password = settings.EMAIL_PASSWORD
+        self.recipient_email = settings.EMAIL_RECIPIENT
         self.hostname = socket.gethostname()
 
     def _send_email(self, subject: str, message: str) -> bool:
@@ -43,10 +45,10 @@ class NotificationService:
             server.login(self.sender_email, self.sender_password)
             server.send_message(email)
             server.quit()
-            logger.info(f"✅ E-posta gönderildi: {subject}")
+            logger.info(f"Email notification sent successfully: '{subject}'")
             return True
         except Exception as e:
-            logger.error(f"❌ E-posta gönderme hatası: {e}")
+            logger.error(f"Failed to send email notification: {e}")
             return False
 
     def send_startup_notification(self):

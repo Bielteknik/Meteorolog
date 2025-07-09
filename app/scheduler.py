@@ -1,8 +1,10 @@
-# app/scheduler.py - GELİŞMİŞ LOGLAMA ENTEGRE EDİLMİŞ VERSİYON
+# app/scheduler.py - GELİŞMİŞ LOGLAMA ENTEGRE EDİLMİŞ VE HATALARI GİDERİLMİŞ NİHAİ VERSİYON
 
 import schedule
 import time
-import logging  # EKLENDİ
+import logging
+import sys
+import traceback
 from datetime import datetime, timedelta
 from tqdm import tqdm
 
@@ -13,9 +15,10 @@ from app.core.processor import DataProcessor
 from app.services.database import DatabaseService
 from app.services.storage import CsvStorageService
 from app.services.notification import NotificationService
-from app.core.logging_config import setup_logging  # EKLENDİ
+from app.core.logging_config import setup_logging
 
-logger = logging.getLogger(__name__)  # EKLENDİ
+# Logger'ı bu modül için tanımla
+logger = logging.getLogger(__name__)
 
 class JobScheduler:
     def __init__(self):
@@ -28,12 +31,13 @@ class JobScheduler:
         self.last_summary_line = ""
 
     def setup_schedule(self):
+        """Ana veri toplama döngüsünü zamanlar."""
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle_task)
         logger.info(f"Zamanlanmış görev ayarlandı: Her {interval} dakikada bir çalışacak.")
 
     def _print_summary(self, summary_reading: "ProcessedReading", status_icon: str = "✅"):
-        # BU BÖLÜM BİR KULLANICI ARAYÜZÜ OLDUĞU İÇİN 'print' KULLANMAYA DEVAM EDİYOR
+        """Analiz sonucunu ve bir sonraki çalışma zamanını tek bir satırda yazdırır."""
         now = datetime.now()
         next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
         
@@ -51,11 +55,12 @@ class JobScheduler:
             f"⏳ {next_run_time.strftime('%H:%M')}"
         )
         
-        print(' ' * len(self.last_summary_line), end='\r')
-        print(summary_line, end='\r')
+        print(' ' * len(self.last_summary_line), file=sys.stdout, end='\r')
+        print(summary_line, file=sys.stdout, end='\r')
         self.last_summary_line = summary_line
 
     def run_collection_cycle_task(self):
+        """Sessizce veri toplar, ilerleme çubuğu gösterir ve sonunda tek satırlık özet basar."""
         logger.debug("Veri toplama döngüsü başlıyor...")
         collected_readings = []
         try:
@@ -65,7 +70,6 @@ class JobScheduler:
             with tqdm(total=burst_duration_seconds, desc="🔥 Veri Toplanıyor", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s", leave=False, file=sys.stdout) as pbar:
                 end_time = time.time() + burst_duration_seconds
                 while time.time() < end_time:
-                    # ... (iç döngü aynı kalıyor)
                     start_loop_time = time.time()
                     reading = self.collector.collect_single_reading()
                     processed = self.processor.process(reading)
@@ -86,22 +90,21 @@ class JobScheduler:
             self._print_summary(summary_reading, status_icon="✅")
             logger.info(f"Döngü tamamlandı. {len(collected_readings)} örnek işlendi.")
 
-        except Exception as e:
-            # exc_info=True, hatanın traceback'ini log dosyasına otomatik ekler.
-            logger.error(f"Veri toplama döngüsünde beklenmedik hata", exc_info=True)
+        except Exception:
+            logger.error("Veri toplama döngüsünde beklenmedik hata", exc_info=True)
             error_title = "Döngü Hatası"
-            error_details = f"Detaylar için log dosyasını kontrol edin: meteo_station.log"
+            error_details = f"Detaylar için log dosyasını kontrol edin: meteo_station.log\n\n{traceback.format_exc()}"
             self.notification_service.send_error_notification(error_title, error_details)
 
-            # Arayüzde hata bildirimi
             now_str = datetime.now().strftime('%H:%M:%S')
             error_line = f"[{now_str}] ❌ | Hata oluştu. Detaylar log dosyasında."
-            print(' ' * len(self.last_summary_line), end='\r')
-            print(error_line)
+            print(' ' * len(self.last_summary_line), file=sys.stdout, end='\r')
+            print(error_line, file=sys.stdout)
             self.last_summary_line = error_line
 
     def run(self):
-        setup_logging()  # Loglama sistemini en başta kur
+        """Zamanlayıcıyı başlatır ve sonsuz döngüde çalıştırır."""
+        setup_logging()
         logger.info("🚀 Meteoroloji İstasyonu Başlatılıyor...")
         
         self.sensor_manager.discover_ports()
