@@ -24,31 +24,43 @@ class SensorManager:
         self.weight_port: str | None = None
 
     def _probe_port(self, port_name: str) -> str | None:
-        """Verilen portu koklayarak hangi sensöre ait olduğunu bulur."""
-        # Yükseklik sensörü olarak test et
+        """
+        Verilen portu daha sabırlı bir şekilde koklayarak hangi sensöre ait olduğunu bulur.
+        Birkaç kez okuma denemesi yapar.
+        """
+        print(f"  -> '{port_name}' portu test ediliyor...")
         try:
-            with serial.Serial(port_name, settings.SERIAL_BAUD_RATE, timeout=settings.SERIAL_PROBE_TIMEOUT_S) as ser:
-                time.sleep(0.5) # Veri gelmesi için bekle
-                if ser.in_waiting > 0:
-                    data = ser.read(ser.in_waiting)
-                    if parse_height(data) is not None:
-                        print(f"✅ '{port_name}' yükseklik sensörü olarak tanımlandı.")
-                        return "height"
-        except serial.SerialException:
+            # Portu daha uzun bir timeout ile açıyoruz
+            with serial.Serial(port_name, settings.SERIAL_BAUD_RATE, timeout=1.0) as ser:
+                # Buffer'ı temizle
+                ser.reset_input_buffer()
+                time.sleep(0.2) # Stabilizasyon için kısa bekleme
+    
+                # Birkaç saniye boyunca veri okumayı dene
+                for _ in range(3): # En fazla 3 deneme
+                    time.sleep(0.7) # Veri gelmesi için daha uzun bekle
+                    
+                    if ser.in_waiting > 0:
+                        data = ser.read(ser.in_waiting)
+                        
+                        # Yükseklik sensörü olarak test et
+                        if parse_height(data) is not None:
+                            print(f"    ✔ '{port_name}' yükseklik sensörü olarak tanımlandı.")
+                            return "height"
+                        
+                        # Ağırlık sensörü olarak test et (readline() ile daha güvenli)
+                        # Gelen 'data' byte dizisini satırlara bölerek test edelim
+                        lines = data.split(b'\n')
+                        for line in lines:
+                            if parse_weight(line) is not None:
+                                print(f"    ✔ '{port_name}' ağırlık sensörü olarak tanımlandı.")
+                                return "weight"
+    
+        except serial.SerialException as e:
+            print(f"    ⚠️ '{port_name}' portu test sırasında açılamadı: {e}")
             pass # Port meşgul veya açılamıyor
-
-        # Ağırlık sensörü olarak test et
-        try:
-            with serial.Serial(port_name, settings.SERIAL_BAUD_RATE, timeout=settings.SERIAL_PROBE_TIMEOUT_S) as ser:
-                time.sleep(0.5) # Veri gelmesi için bekle
-                if ser.in_waiting > 0:
-                    line = ser.readline()
-                    if parse_weight(line) is not None:
-                        print(f"✅ '{port_name}' ağırlık sensörü olarak tanımlandı.")
-                        return "weight"
-        except serial.SerialException:
-            pass # Port meşgul veya açılamıyor
-
+        
+        print(f"    - '{port_name}' portu için sensör tipi belirlenemedi.")
         return None
 
     def discover_ports(self):
@@ -107,7 +119,6 @@ class SensorManager:
                 print(f"✔ Sıcaklık/Nem sensörü bağlandı: I2C-{settings.I2C_BUS}")
             except (FileNotFoundError, PermissionError, OSError) as e:
                 print(f"❌ Sıcaklık/Nem sensörü (I2C) bağlanamadı: {e}")
-
 
     def disconnect(self):
         """Tüm aktif bağlantıları güvenli bir şekilde kapatır."""
