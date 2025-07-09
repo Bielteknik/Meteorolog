@@ -1,4 +1,4 @@
-# app/sensors/parsers.py - UZAKTAKİ CİHAZ İÇİN NİHAİ VERSİYON
+# app/sensors/parsers.py - NİHAİ VERSİYON
 
 from typing import Optional, Tuple
 
@@ -59,12 +59,17 @@ def parse_weight(data: bytes) -> Optional[float]:
 def parse_sht3x(data: list) -> Tuple[Optional[float], Optional[float]]:
     """SHT3x sensöründen gelen 6 byte'lık veriyi sıcaklık ve neme çevirir."""
     try:
+        if not data or len(data) < 6:
+            return None, None
+            
         # Sıcaklık hesaplama
         temp_raw = (data[0] << 8) | data[1]
         temperature = -45 + (175 * temp_raw / 65535.0)
+        
         # Nem hesaplama
         hum_raw = (data[3] << 8) | data[4]
         humidity = 100 * hum_raw / 65535.0
+        
         return round(temperature, 2), round(humidity, 2)
     except (IndexError, TypeError):
         return None, None
