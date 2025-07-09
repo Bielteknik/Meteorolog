@@ -1,0 +1,33 @@
+# --- Zamanlama Ayarları ---
+DATA_COLLECTION_INTERVAL="5"
+DATA_COLLECTION_DURATION_SECONDS="50"
+API_SEND_INTERVAL="30"
+
+# --- E-posta Ayarları ---
+EMAIL_ENABLED=True
+EMAIL_SMTP_SERVER="mail.ejder3200.com"
+EMAIL_SMTP_PORT=465
+EMAIL_SENDER="kenandemir@ejder3200.com"
+EMAIL_PASSWORD="HjDm?zvd6jP-"
+EMAIL_RECIPIENT="kenandemir@ejder3200.com"
+
+# --- Ana Döngü Hata Yönetimi ---
+MAX_MAIN_LOOP_RETRIES="4"
+MAIN_LOOP_RETRY_DELAY="20"
+
+# --- DataCollector ve API Ayarları ---
+DATABASE_FILE_PATH="/home/bielteknik/Meteorology/Meteorolog/data/weather_station_data.db"
+CSV_FOLDER="/home/bielteknik/Meteorology/Meteorolog/data/csv_reports"
+
+SENSOR_ZERO_DISTANCE_MM="3700.0"
+MEASUREMENT_AREA_M2 = "1.0"
+
+OPENWEATHERMAP_API_KEY="e1c89ccd58676fadc881aaf7f7402dd5"
+OPENWEATHERMAP_CITY_ID="315368"
+OPENWEATHERMAP_LAT="39.909"
+OPENWEATHERMAP_LON="41.277"
+
+#EXTERNAL_API_ENDPOINT="https://fakeapi.myweatherservice.com/ingest"
+#EXTERNAL_API_TOKEN="fake_secret_api_token_for_external_service_xyz789" # GERÇEK TOKENİNİZİ KULLANIN
+
+SENSOR_LOCATION_NAME="Ejder3200 Meteorology"

@@ -1,5 +1,3 @@
-# app/sensors/parsers.py - NİHAİ VERSİYON
-
 from typing import Optional, Tuple
 
 def parse_height_from_raw(data: bytes) -> Optional[float]:

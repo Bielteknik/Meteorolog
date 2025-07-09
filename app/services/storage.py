@@ -1,9 +1,8 @@
-import pandas as pd
-import pathlib
-from datetime import datetime
-from typing import List
 import logging
+from pathlib import Path
+from typing import List
 
+import pandas as pd
 from app.config import settings
 from app.models.schemas import ProcessedReading
 
@@ -11,12 +10,12 @@ logger = logging.getLogger(__name__)
 
 class CsvStorageService:
     """Verileri günlük CSV dosyalarına kaydeder."""
-    def __init__(self, folder_path: str = settings.CSV_FOLDER):
-        self.folder_path = pathlib.Path(folder_path)
+    def __init__(self):
+        self.folder_path = Path(settings.CSV_FOLDER)
         self._ensure_csv_directory()
-    
+
     def _ensure_csv_directory(self):
-        """CSV dosyalarının bulunacağı dizinin var olduğundan emin olur."""
+        """CSV dosyalarının bulunacağı 'data/csv_exports' dizininin var olduğundan emin olur."""
         self.folder_path.mkdir(parents=True, exist_ok=True)
 
     def save_readings_to_csv(self, readings: List[ProcessedReading]):
@@ -27,16 +26,21 @@ class CsvStorageService:
         if not readings:
             return
 
-        today_str = datetime.now().strftime('%Y%m%d')
-        file_path = self.folder_path / f"{settings.LOG_FILE_PREFIX}_{today_str}.csv"
+        try:
+            today_str = readings[0].timestamp.strftime('%Y%m%d')
+            file_path = self.folder_path / f"sensor_data_{today_str}.csv"
 
-        # Okuma listesini bir pandas DataFrame'e dönüştür
-        df_new = pd.DataFrame([r.model_dump() for r in readings])
-        
-        # Timestamp sütununu daha okunabilir bir formata getir
-        df_new['timestamp'] = pd.to_datetime(df_new['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
+            # Okuma listesini bir pandas DataFrame'e dönüştür
+            df_new = pd.DataFrame([r.model_dump() for r in readings])
+            
+            # Timestamp sütununu daha okunabilir bir formata getir
+            df_new['timestamp'] = pd.to_datetime(df_new['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
 
-        # Dosya zaten varsa, başlık olmadan ekle. Yoksa, başlıkla oluştur.
-        header = not file_path.exists()
-        df_new.to_csv(file_path, mode='a', header=header, index=False)
-        logger.debug(f"{len(readings)} reading(s) saved to '{file_path.name}'.")
+            # Dosya zaten varsa, başlık olmadan ekle. Yoksa, başlıkla oluştur.
+            header = not file_path.exists()
+            df_new.to_csv(file_path, mode='a', header=header, index=False, encoding='utf-8')
+            
+            logger.debug(f"{len(readings)} reading(s) saved to '{file_path.name}'.")
+
+        except Exception as e:
+            logger.error(f"Failed to save readings to CSV file: {e}")
