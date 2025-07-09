@@ -1,31 +1,58 @@
+# app/sensors/parsers.py - UZAKTAKİ CİHAZ İÇİN NİHAİ VERSİYON
+
 from typing import Optional, Tuple
 
 def parse_height(data: bytes) -> Optional[float]:
-    """Mesafe sensöründen gelen 'Rxxxx' formatındaki veriyi parse eder."""
+    """
+    Mesafe sensöründen gelen 'Rxxxx' formatındaki veriyi parse eder.
+    Eski projeden alınan test edilmiş mantık kullanılmıştır.
+    """
     try:
+        # Gelen byte dizisinde birden fazla mesaj olabilir, 'R' harfini sondan aramak
+        # en güncel veriyi alma olasılığını artırır.
         str_data = data.decode('ascii', errors='ignore')
         if 'R' in str_data:
-            # 'R' harfinden sonraki 4 karakteri bul ve sayıya çevir
+            # En son 'R' harfinin konumunu bul
             start_idx = str_data.rfind('R') + 1
-            if start_idx < len(str_data):
-                num_str = str_data[start_idx : start_idx + 4]
-                if num_str.isdigit():
-                    return float(num_str)
+            # 'R'den sonra en az 4 karakter olup olmadığını kontrol et
+            if len(str_data) >= start_idx + 4:
+                # Sonraki 4 karakteri al
+                distance_str = str_data[start_idx : start_idx + 4]
+                # Sadece rakamlardan oluşuyorsa çevir
+                if distance_str.isdigit():
+                    return float(distance_str)
     except (ValueError, UnicodeDecodeError):
         pass  # Hata durumunda None dönecek
     return None
 
 def parse_weight(data: bytes) -> Optional[float]:
-    """Ağırlık sensöründen gelen 'kg' içeren veriyi parse edip grama çevirir."""
+    """
+    Ağırlık sensöründen gelen '=   15.65B0' formatındaki veriyi parse eder.
+    Eski projeden alınan ve minicom'da teyit edilen mantık kullanılmıştır.
+    """
     try:
         str_data = data.decode('ascii', errors='ignore').strip()
-        if "kg" in str_data:
-            # Sadece sayısal kısmı ve noktayı al
-            numeric_part = "".join(c for c in str_data if c.isdigit() or c == '.')
+        
+        # Formatın '=' ile başladığını ve içinde '.' olduğunu kontrol edelim
+        if str_data.startswith("=") and "." in str_data:
+            # Eşittir işaretini ve baştaki/sondaki boşlukları at
+            cleaned_str = str_data.lstrip('=').strip()
+            
+            # Değerin sayısal kısmını ve birim/checksum kısmını ayır
+            # Genellikle sayısal olmayan ilk karakterde ayrım yapılır.
+            numeric_part = ""
+            for char in cleaned_str:
+                if char.isdigit() or char == '.':
+                    numeric_part += char
+                else:
+                    # Sayısal olmayan bir karaktere gelindiğinde döngüden çık
+                    break
+            
             if numeric_part:
-                kg_value = float(numeric_part)
-                return kg_value * 1000  # Grama çevir
-    except (ValueError, UnicodeDecodeError):
+                value_kg = float(numeric_part)
+                # Değeri kg kabul edip grama çeviriyoruz
+                return value_kg * 1000
+    except (ValueError, UnicodeDecodeError, IndexError):
         pass  # Hata durumunda None dönecek
     return None
 
