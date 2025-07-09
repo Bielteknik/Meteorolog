@@ -1,4 +1,4 @@
-# app/scheduler.py - GÖRSEL OLARAK İYİLEŞTİRİLMİŞ VERSİYON
+# app/scheduler.py - ÖZET ÇIKTILI, SESSİZ VERSİYON
 
 import schedule
 import time
@@ -35,9 +35,11 @@ class JobScheduler:
     def run_collection_cycle_task(self):
         """
         Bir tam veri toplama, işleme ve kaydetme döngüsünü yönetir.
+        Artık döngü sırasında değil, döngü sonunda özet bilgi yazdırır.
         """
         job_name = "Veri Toplama Döngüsü"
-        print(f"\n--- 🚀 GÖREV BAŞLADI: {job_name} [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ---")
+        start_time_str = datetime.now().strftime('%H:%M:%S')
+        print(f"\n--- 🚀 GÖREV BAŞLADI: {job_name} [{start_time_str}] ---")
         
         collected_readings = []
         try:
@@ -46,44 +48,56 @@ class JobScheduler:
             sample_interval = settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS
             end_time = datetime.now() + burst_duration
             
-            print(f"  🔥 Veri toplama patlaması başladı ({burst_duration.total_seconds() / 60:.1f} dakika sürecek)...")
+            # --- YENİ: Dinamik "bekleniyor" animasyonu ---
+            print(f"  🔥 Veri toplama patlaması başladı ({burst_duration.total_seconds() / 60:.1f} dakika)... ", end="", flush=True)
             
-            # while döngüsünü try-except bloğuna alarak Ctrl+C'yi yakalıyoruz
+            animation = "|/-\\"
+            idx = 0
+            
             try:
                 while datetime.now() < end_time:
+                    # Anlık okumalar sessizce toplanır
                     reading = self.collector.collect_single_reading()
                     processed = self.processor.process(reading)
                     collected_readings.append(processed)
                     
-                    # --- YENİ, DAHA OKUNAKLI ANLIK OKUMA FORMATI ---
-                    h_str = f"{processed.height_mm:7.1f}" if processed.height_mm is not None else "  N/A  "
-                    w_str = f"{processed.weight_g:7.1f}" if processed.weight_g is not None else "  N/A  "
-                    t_str = f"{processed.temperature_c:5.1f}" if processed.temperature_c is not None else " N/A "
-                    hu_str = f"{processed.humidity_perc:5.1f}" if processed.humidity_perc is not None else " N/A "
-                    
-                    print(f"  │ 📏 Yük.: {h_str} mm │ ⚖️ Ağır.: {w_str} g │ 🌡️ Isı: {t_str} °C │ 💧 Nem: {hu_str} % │")
-                    # ----------------------------------------------------
+                    # Kullanıcıya sistemin çalıştığını gösteren animasyon
+                    print(animation[idx % len(animation)], end="\b", flush=True)
+                    idx += 1
                     
                     time.sleep(sample_interval)
             except KeyboardInterrupt:
                 print("\n  🛑 Veri toplama döngüsü kullanıcı tarafından yarıda kesildi.")
-                # Pass, döngünün sonlanmasına izin verir ve toplanan verileri işlemeye devam eder.
                 pass
             
-            print(f"  🎉 Patlama bitti. Toplam {len(collected_readings)} örnek alındı.")
+            print("✓") # Animasyonu bitirip onay işareti koy
+            
+            sample_count = len(collected_readings)
+            print(f"  🎉 Patlama bitti. Toplam {sample_count} örnek alındı.")
     
             # 2. Analiz
             if not collected_readings:
                 print("  ⚠️ Döngüde hiç veri toplanamadı. Kayıt atlanıyor.")
                 return
     
-            print("  📊 Toplanan veriler analiz ediliyor (ortalama hesaplanıyor)...")
+            #print("  📊 Toplanan veriler analiz ediliyor (ortalama hesaplanıyor)...")
             summary_reading = self.processor.analyze_readings(collected_readings)
-    
+            
+            # --- YENİ: Analiz sonucunu güzel bir formatta yazdır ---
+            print("  📊 Analiz Sonucu (Ortalama Değerler):")
+            h_str = f"{summary_reading.snow_height_mm:7.1f}" if summary_reading.snow_height_mm is not None else "  N/A  "
+            w_str = f"{summary_reading.weight_g:7.1f}" if summary_reading.weight_g is not None else "  N/A  "
+            t_str = f"{summary_reading.temperature_c:5.1f}" if summary_reading.temperature_c is not None else " N/A "
+            hu_str = f"{summary_reading.humidity_perc:5.1f}" if summary_reading.humidity_perc is not None else " N/A "
+            d_str = f"{summary_reading.density_kg_m3:6.1f}" if summary_reading.density_kg_m3 is not None else "  N/A "
+
+            print(f"  └─ 📏 Kar Yük.: {h_str} mm | ⚖️ Ağırlık: {w_str} g | 🌡️ Isı: {t_str} °C | 💧 Nem: {hu_str} % | 🧱 Yoğunluk: {d_str} kg/m³")
+            # ------------------------------------------------------------
+
             # 3. Kayıt
             print("  💾 Özet veri veritabanına ve CSV'ye kaydediliyor...")
             self.db_service.save_reading(summary_reading)
-            self.csv_service.save_readings_to_csv([summary_reading]) # CSV hala sadece 1 okuma kaydediyor
+            self.csv_service.save_readings_to_csv([summary_reading])
     
             print("  ✨ Döngü başarıyla tamamlandı.")
     
@@ -94,7 +108,8 @@ class JobScheduler:
             self.notification_service.send_error_notification(error_title, error_details)
         
         finally:
-            print(f"--- ✅ GÖREV BİTTİ: {job_name} [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ---")
+            end_time_str = datetime.now().strftime('%H:%M:%S')
+            print(f"--- ✅ GÖREV BİTTİ: {job_name} [{end_time_str}] ---")
 
     def run(self):
         """Zamanlayıcıyı başlatır ve sonsuz döngüde çalıştırır."""
