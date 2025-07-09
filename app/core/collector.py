@@ -2,7 +2,7 @@ import serial
 import time
 from typing import Optional
 
-from app.config import settings
+from app.config import _settings
 from app.models.schemas import SensorReading
 from app.sensors.manager import SensorManager
 from app.sensors.parsers import parse_height, parse_weight, parse_sht3x
@@ -44,12 +44,12 @@ class DataCollector:
             try:
                 # SHT3x'e ölçüm komutunu gönder
                 self.manager.i2c_bus.write_i2c_block_data(
-                    settings.I2C_SHT3X_ADDRESS, 0x2C, [0x06]
+                    _settings.I2C_SHT3X_ADDRESS, 0x2C, [0x06]
                 )
                 time.sleep(0.1) # Ölçüm için kısa bir bekleme
                 # Veriyi oku
                 data = self.manager.i2c_bus.read_i2c_block_data(
-                    settings.I2C_SHT3X_ADDRESS, 0x00, 6
+                    _settings.I2C_SHT3X_ADDRESS, 0x00, 6
                 )
                 temp, hum = parse_sht3x(data)
             except OSError as e:

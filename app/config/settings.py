@@ -1,3 +1,5 @@
+# app/config/settings.py - GÜNCELLENMİŞ NİHAİ VERSİYON
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -11,10 +13,16 @@ LOG_FILE_PREFIX: str = "sensor_data_log"
 CSV_FOLDER: str = str(BASE_DIR / "data" / "csv_exports")
 DATABASE_FILE_PATH: str = str(BASE_DIR / "data" / "weather_station.sqlite")
 
-# Zamanlama Ayarları (dakika ve saniye cinsinden)
-DATA_COLLECTION_INTERVAL_MINUTES: int = int(os.getenv("DATA_COLLECTION_INTERVAL_MINUTES", "5"))
-DATA_COLLECTION_DURATION_SECONDS: int = int(os.getenv("DATA_COLLECTION_DURATION_SECONDS", "55"))
-API_SEND_INTERVAL_MINUTES: int = int(os.getenv("API_SEND_INTERVAL_MINUTES", "60"))
+# --- YENİ ZAMANLAMA AYARLARI ---
+# Ana döngünün ne sıklıkla çalışacağını belirler (dakika cinsinden).
+DATA_COLLECTION_INTERVAL_MINUTES: int = int(os.getenv("DATA_COLLECTION_INTERVAL_MINUTES", "30"))
+
+# Her döngüde, veri toplamanın ne kadar süreceğini belirler (dakika cinsinden).
+DATA_BURST_DURATION_MINUTES: int = int(os.getenv("DATA_BURST_DURATION_MINUTES", "3"))
+
+# Veri toplama süresi boyunca, ne sıklıkla örnek alınacağını belirler (saniye cinsinden).
+DATA_BURST_SAMPLE_INTERVAL_SECONDS: int = int(os.getenv("DATA_BURST_SAMPLE_INTERVAL_SECONDS", "2"))
+
 
 # Sensör Ayarları
 SENSOR_ZERO_DISTANCE_MM: float = float(os.getenv("SENSOR_ZERO_DISTANCE_MM", "3700.0"))
@@ -34,14 +42,13 @@ VALIDATION_RANGES = {
 }
 
 # API Ayarları
-EXTERNAL_API_ENDPOINT: str = os.getenv("EXTERNAL_API_ENDPOINT", "[...BURAYI DOLDUR...]")
-OPENWEATHERMAP_API_KEY: str = os.getenv("OPENWEATHERMAP_API_KEY", "[...BURAYI DOLDUR...]")
-OPENWEATHERMAP_CITY_ID: str = os.getenv("OPENWEATHERMAP_CITY_ID", "[...BURAYI DOLDUR...]")
+# API_SEND_INTERVAL_MINUTES, EXTERNAL_API_ENDPOINT, OPENWEATHERMAP_API_KEY, OPENWEATHERMAP_CITY_ID
+# Bu ayarlar şu anki mantıkta kullanılmıyor ama gelecekteki geliştirmeler için burada kalabilir.
 
 # E-posta Ayarları
 EMAIL_ENABLED: bool = os.getenv("EMAIL_ENABLED", "False").lower() in ("true", "1", "t")
-EMAIL_SMTP_SERVER: str = os.getenv("EMAIL_SMTP_SERVER", "[...BURAYI DOLDUR...]")
+EMAIL_SMTP_SERVER: str = os.getenv("EMAIL_SMTP_SERVER", "smtp.example.com")
 EMAIL_SMTP_PORT: int = int(os.getenv("EMAIL_SMTP_PORT", "587"))
-EMAIL_SENDER: str = os.getenv("EMAIL_SENDER", "[...BURAYI DOLDUR...]")
-EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "[...BURAYI DOLDUR...]")
-EMAIL_RECIPIENT: str = os.getenv("EMAIL_RECIPIENT", "[...BURAYI DOLDUR...]")
+EMAIL_SENDER: str = os.getenv("EMAIL_SENDER", "user@example.com")
+EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "password")
+EMAIL_RECIPIENT: str = os.getenv("EMAIL_RECIPIENT", "recipient@example.com")

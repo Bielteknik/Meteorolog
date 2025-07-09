@@ -3,7 +3,7 @@ import time
 from smbus2 import SMBus
 from typing import List, Dict
 
-from app.config import settings
+from app.config import _settings
 from app.sensors.parsers import parse_height, parse_weight
 
 class SensorManager:
@@ -31,7 +31,7 @@ class SensorManager:
         print(f"  -> '{port_name}' portu test ediliyor...")
         try:
             # Portu daha uzun bir timeout ile açıyoruz
-            with serial.Serial(port_name, settings.SERIAL_BAUD_RATE, timeout=1.0) as ser:
+            with serial.Serial(port_name, _settings.SERIAL_BAUD_RATE, timeout=1.0) as ser:
                 # Buffer'ı temizle
                 ser.reset_input_buffer()
                 time.sleep(0.2) # Stabilizasyon için kısa bekleme
@@ -94,7 +94,7 @@ class SensorManager:
         # Mesafe sensörü
         if self.height_port and not self.is_height_connected:
             try:
-                self.height_ser = serial.Serial(self.height_port, settings.SERIAL_BAUD_RATE, timeout=settings.SERIAL_READ_TIMEOUT_S)
+                self.height_ser = serial.Serial(self.height_port, _settings.SERIAL_BAUD_RATE, timeout=_settings.SERIAL_READ_TIMEOUT_S)
                 self.is_height_connected = True
                 print(f"✔ Mesafe sensörü bağlandı: {self.height_port}")
             except serial.SerialException as e:
@@ -103,7 +103,7 @@ class SensorManager:
         # Ağırlık sensörü
         if self.weight_port and not self.is_weight_connected:
             try:
-                self.weight_ser = serial.Serial(self.weight_port, settings.SERIAL_BAUD_RATE, timeout=settings.SERIAL_READ_TIMEOUT_S)
+                self.weight_ser = serial.Serial(self.weight_port, _settings.SERIAL_BAUD_RATE, timeout=_settings.SERIAL_READ_TIMEOUT_S)
                 self.is_weight_connected = True
                 print(f"✔ Ağırlık sensörü bağlandı: {self.weight_port}")
             except serial.SerialException as e:
@@ -112,11 +112,11 @@ class SensorManager:
         # Sıcaklık/Nem sensörü (I2C)
         if not self.is_temp_hum_connected:
             try:
-                self.i2c_bus = SMBus(settings.I2C_BUS)
+                self.i2c_bus = SMBus(_settings.I2C_BUS)
                 # Basit bir test komutu göndererek cihazın varlığını kontrol et
-                self.i2c_bus.write_byte(settings.I2C_SHT3X_ADDRESS, 0x00)
+                self.i2c_bus.write_byte(_settings.I2C_SHT3X_ADDRESS, 0x00)
                 self.is_temp_hum_connected = True
-                print(f"✔ Sıcaklık/Nem sensörü bağlandı: I2C-{settings.I2C_BUS}")
+                print(f"✔ Sıcaklık/Nem sensörü bağlandı: I2C-{_settings.I2C_BUS}")
             except (FileNotFoundError, PermissionError, OSError) as e:
                 print(f"❌ Sıcaklık/Nem sensörü (I2C) bağlanamadı: {e}")
 

@@ -4,21 +4,21 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
-from app.config import settings
+from app.config import _settings
 
 class NotificationService:
     """E-posta ile bildirim gönderme servisi."""
     def __init__(self):
-        if not settings.EMAIL_ENABLED:
+        if not _settings.EMAIL_ENABLED:
             self.enabled = False
             return
 
         self.enabled = True
-        self.smtp_server = settings.EMAIL_SMTP_SERVER
-        self.smtp_port = settings.EMAIL_SMTP_PORT
-        self.sender_email = settings.EMAIL_SENDER
-        self.sender_password = settings.EMAIL_PASSWORD
-        self.recipient_email = settings.EMAIL_RECIPIENT
+        self.smtp_server = _settings.EMAIL_SMTP_SERVER
+        self.smtp_port = _settings.EMAIL_SMTP_PORT
+        self.sender_email = _settings.EMAIL_SENDER
+        self.sender_password = _settings.EMAIL_PASSWORD
+        self.recipient_email = _settings.EMAIL_RECIPIENT
         self.hostname = socket.gethostname()
 
     def _send_email(self, subject: str, message: str) -> bool:

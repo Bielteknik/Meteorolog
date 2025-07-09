@@ -2,12 +2,12 @@ import sqlite3
 import pathlib
 from typing import List
 
-from app.config import settings
+from app.config import _settings
 from app.models.schemas import ProcessedReading
 
 class DatabaseService:
     """Veritabanı işlemlerini (oluşturma, kaydetme) yönetir."""
-    def __init__(self, db_path: str = settings.DATABASE_FILE_PATH):
+    def __init__(self, db_path: str = _settings.DATABASE_FILE_PATH):
         self.db_path = db_path
         self._ensure_db_directory()
         self._create_table()
