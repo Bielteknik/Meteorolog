@@ -1,9 +1,10 @@
-# app/scheduler.py - ÖZET ÇIKTILI, SESSİZ VERSİYON
+# app/scheduler.py - MİNİMALİST, İKONLU, DETAYLI İLERLEME ÇUBUKLU VERSİYON
 
 import schedule
 import time
 import traceback
 from datetime import datetime, timedelta
+from tqdm import tqdm
 
 from app.config import settings
 from app.sensors.manager import SensorManager
@@ -21,95 +22,86 @@ class JobScheduler:
         self.db_service = DatabaseService()
         self.csv_service = CsvStorageService()
         self.notification_service = NotificationService()
+        self.last_summary_line = "" # Son özet satırını saklamak için
 
     def setup_schedule(self):
         """Ana veri toplama döngüsünü zamanlar."""
-        print("🗓️  Zamanlanmış görev ayarlanıyor...")
-        
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle_task)
-    
-        print(f"  - Ana döngü her {interval} dakikada bir çalışacak.")
-        print(f"  - İlk döngü test amaçlı olarak hemen şimdi başlatılacak.")
+
+    def _print_summary(self, summary_reading: "ProcessedReading", status_icon: str = "✅"):
+        """
+        Analiz sonucunu ve bir sonraki çalışma zamanını ikonlarla birlikte tek bir satırda yazdırır.
+        """
+        now = datetime.now()
+        next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
+        
+        h_str = f"{summary_reading.snow_height_mm:.1f} mm" if summary_reading.snow_height_mm is not None else "N/A"
+        w_str = f"{summary_reading.weight_g:.0f} g" if summary_reading.weight_g is not None else "N/A"
+        t_str = f"{summary_reading.temperature_c:.1f}°C" if summary_reading.temperature_c is not None else "N/A"
+        hu_str = f"{summary_reading.humidity_perc:.1f}%" if summary_reading.humidity_perc is not None else "N/A"
+
+        summary_line = (
+            f"[{now.strftime('%H:%M:%S')}] {status_icon} | "
+            f"📏 {h_str.ljust(9)} | "
+            f"⚖️ {w_str.ljust(9)} | "
+            f"🌡️ {t_str.ljust(7)} | "
+            f"💧 {hu_str.ljust(6)} | "
+            f"⏳ {next_run_time.strftime('%H:%M')}"
+        )
+        
+        print(' ' * len(self.last_summary_line), end='\r')
+        print(summary_line, end='\r')
+        self.last_summary_line = summary_line
 
     def run_collection_cycle_task(self):
         """
-        Bir tam veri toplama, işleme ve kaydetme döngüsünü yönetir.
-        Artık döngü sırasında değil, döngü sonunda özet bilgi yazdırır.
+        Sessizce veri toplar, ilerleme çubuğu gösterir ve sonunda tek satırlık özet basar.
         """
-        job_name = "Veri Toplama Döngüsü"
-        start_time_str = datetime.now().strftime('%H:%M:%S')
-        print(f"\n--- 🚀 GÖREV BAŞLADI: {job_name} [{start_time_str}] ---")
-        
         collected_readings = []
         try:
-            # 1. Veri Toplama Patlaması (Data Burst)
-            burst_duration = timedelta(minutes=settings.DATA_BURST_DURATION_MINUTES)
+            burst_duration_seconds = settings.DATA_BURST_DURATION_MINUTES * 60
             sample_interval = settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS
-            end_time = datetime.now() + burst_duration
             
-            # --- YENİ: Dinamik "bekleniyor" animasyonu ---
-            print(f"  🔥 Veri toplama patlaması başladı ({burst_duration.total_seconds() / 60:.1f} dakika)... ", end="", flush=True)
-            
-            animation = "|/-\\"
-            idx = 0
-            
-            try:
-                while datetime.now() < end_time:
-                    # Anlık okumalar sessizce toplanır
+            # --- DÜZELTİLEN BÖLÜM: bar_format argümanı geri eklendi ---
+            with tqdm(total=burst_duration_seconds, 
+                      desc="🔥 Veri Toplanıyor", 
+                      bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s", 
+                      leave=False) as pbar:
+                
+                # Daha kararlı zamanlama için time.time() kullanıyoruz
+                end_time = time.time() + burst_duration_seconds
+                while time.time() < end_time:
+                    start_loop_time = time.time()
+                    
                     reading = self.collector.collect_single_reading()
                     processed = self.processor.process(reading)
                     collected_readings.append(processed)
                     
-                    # Kullanıcıya sistemin çalıştığını gösteren animasyon
-                    print(animation[idx % len(animation)], end="\b", flush=True)
-                    idx += 1
-                    
-                    time.sleep(sample_interval)
-            except KeyboardInterrupt:
-                print("\n  🛑 Veri toplama döngüsü kullanıcı tarafından yarıda kesildi.")
-                pass
-            
-            print("✓") # Animasyonu bitirip onay işareti koy
-            
-            sample_count = len(collected_readings)
-            print(f"  🎉 Patlama bitti. Toplam {sample_count} örnek alındı.")
-    
-            # 2. Analiz
+                    loop_duration = time.time() - start_loop_time
+                    sleep_time = max(0, sample_interval - loop_duration)
+                    time.sleep(sleep_time)
+                    pbar.update(sample_interval)
+
             if not collected_readings:
-                print("  ⚠️ Döngüde hiç veri toplanamadı. Kayıt atlanıyor.")
                 return
-    
-            #print("  📊 Toplanan veriler analiz ediliyor (ortalama hesaplanıyor)...")
+
             summary_reading = self.processor.analyze_readings(collected_readings)
-            
-            # --- YENİ: Analiz sonucunu güzel bir formatta yazdır ---
-            print("  📊 Analiz Sonucu (Ortalama Değerler):")
-            h_str = f"{summary_reading.snow_height_mm:7.1f}" if summary_reading.snow_height_mm is not None else "  N/A  "
-            w_str = f"{summary_reading.weight_g:7.1f}" if summary_reading.weight_g is not None else "  N/A  "
-            t_str = f"{summary_reading.temperature_c:5.1f}" if summary_reading.temperature_c is not None else " N/A "
-            hu_str = f"{summary_reading.humidity_perc:5.1f}" if summary_reading.humidity_perc is not None else " N/A "
-            d_str = f"{summary_reading.density_kg_m3:6.1f}" if summary_reading.density_kg_m3 is not None else "  N/A "
-
-            print(f"  └─ 📏 Kar Yük.: {h_str} mm | ⚖️ Ağırlık: {w_str} g | 🌡️ Isı: {t_str} °C | 💧 Nem: {hu_str} % | 🧱 Yoğunluk: {d_str} kg/m³")
-            # ------------------------------------------------------------
-
-            # 3. Kayıt
-            print("  💾 Özet veri veritabanına ve CSV'ye kaydediliyor...")
             self.db_service.save_reading(summary_reading)
             self.csv_service.save_readings_to_csv([summary_reading])
-    
-            print("  ✨ Döngü başarıyla tamamlandı.")
-    
+
+            self._print_summary(summary_reading, status_icon="✅")
+
         except Exception as e:
-            error_title = f"{job_name} Görev Hatası"
-            error_details = f"Hata: {e}\n\nTraceback:\n{traceback.format_exc()}"
-            print(f"  ❌ HATA: {error_title}\n{error_details}")
+            error_title = "Döngü Hatası"
+            error_details = f"Hata: {e}\nTraceback:\n{traceback.format_exc()}"
+            now_str = datetime.now().strftime('%H:%M:%S')
+            error_line = f"[{now_str}] ❌ | Hata: {e}"
+            print(' ' * len(self.last_summary_line), end='\r')
+            print(error_line)
+            self.last_summary_line = error_line
+            
             self.notification_service.send_error_notification(error_title, error_details)
-        
-        finally:
-            end_time_str = datetime.now().strftime('%H:%M:%S')
-            print(f"--- ✅ GÖREV BİTTİ: {job_name} [{end_time_str}] ---")
 
     def run(self):
         """Zamanlayıcıyı başlatır ve sonsuz döngüde çalıştırır."""
@@ -119,14 +111,18 @@ class JobScheduler:
         self.notification_service.send_startup_notification()
         self.setup_schedule()
         
-        # İlk döngüyü hemen çalıştırarak sistemin çalıştığını teyit edelim
+        interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
+        burst_duration = settings.DATA_BURST_DURATION_MINUTES
+        print("---")
+        print(f"🗓️  Görev ayarlandı: Her {interval} dakikada bir, {burst_duration} dk veri toplanacak.")
+        print("✨ Sistem aktif. İlk döngü çalıştırılıyor...")
+        
         self.run_collection_cycle_task()
 
-        print(f"\n✨ Normal zamanlama döngüsü bekleniyor. Sonraki çalışma yaklaşık {settings.DATA_COLLECTION_INTERVAL_MINUTES} dakika içinde.")
         try:
             while True:
                 schedule.run_pending()
-                time.sleep(1) # CPU'yu yormamak için 1 saniye bekle
+                time.sleep(1)
         except KeyboardInterrupt:
             print("\n🛑 Program kullanıcı tarafından durduruldu.")
         finally:
