@@ -1,3 +1,4 @@
+from schedule import logger
 import serial
 import time
 from typing import Optional
@@ -26,7 +27,7 @@ class DataCollector:
                     data = self.manager.height_ser.read(self.manager.height_ser.in_waiting)
                     height = parse_height(data)
             except serial.SerialException as e:
-                print(f"HATA: Mesafe sensörü okunamadı - {e}")
+                logger.error(f"HATA: Mesafe sensörü okunamadı - {e}")
                 self.manager.is_height_connected = False # Bağlantı koptu
 
         # Ağırlık sensörü okuması
@@ -36,7 +37,7 @@ class DataCollector:
                     line = self.manager.weight_ser.readline()
                     weight = parse_weight(line)
             except serial.SerialException as e:
-                print(f"HATA: Ağırlık sensörü okunamadı - {e}")
+                logger.error(f"HATA: Ağırlık sensörü okunamadı - {e}")
                 self.manager.is_weight_connected = False # Bağlantı koptu
 
         # Sıcaklık ve Nem sensörü okuması
@@ -53,7 +54,7 @@ class DataCollector:
                 )
                 temp, hum = parse_sht3x(data)
             except OSError as e:
-                print(f"HATA: I2C sensörü okunamadı - {e}")
+                logger.error(f"HATA: I2C sensörü okunamadı - {e}")
                 self.manager.is_temp_hum_connected = False # Bağlantı koptu
 
         return SensorReading(

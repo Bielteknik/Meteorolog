@@ -1,8 +1,8 @@
-# app/scheduler.py - MİNİMALİST, İKONLU, DETAYLI İLERLEME ÇUBUKLU VERSİYON
+# app/scheduler.py - GELİŞMİŞ LOGLAMA ENTEGRE EDİLMİŞ VERSİYON
 
 import schedule
 import time
-import traceback
+import logging  # EKLENDİ
 from datetime import datetime, timedelta
 from tqdm import tqdm
 
@@ -13,6 +13,9 @@ from app.core.processor import DataProcessor
 from app.services.database import DatabaseService
 from app.services.storage import CsvStorageService
 from app.services.notification import NotificationService
+from app.core.logging_config import setup_logging  # EKLENDİ
+
+logger = logging.getLogger(__name__)  # EKLENDİ
 
 class JobScheduler:
     def __init__(self):
@@ -22,17 +25,15 @@ class JobScheduler:
         self.db_service = DatabaseService()
         self.csv_service = CsvStorageService()
         self.notification_service = NotificationService()
-        self.last_summary_line = "" # Son özet satırını saklamak için
+        self.last_summary_line = ""
 
     def setup_schedule(self):
-        """Ana veri toplama döngüsünü zamanlar."""
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle_task)
+        logger.info(f"Zamanlanmış görev ayarlandı: Her {interval} dakikada bir çalışacak.")
 
     def _print_summary(self, summary_reading: "ProcessedReading", status_icon: str = "✅"):
-        """
-        Analiz sonucunu ve bir sonraki çalışma zamanını ikonlarla birlikte tek bir satırda yazdırır.
-        """
+        # BU BÖLÜM BİR KULLANICI ARAYÜZÜ OLDUĞU İÇİN 'print' KULLANMAYA DEVAM EDİYOR
         now = datetime.now()
         next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
         
@@ -55,35 +56,27 @@ class JobScheduler:
         self.last_summary_line = summary_line
 
     def run_collection_cycle_task(self):
-        """
-        Sessizce veri toplar, ilerleme çubuğu gösterir ve sonunda tek satırlık özet basar.
-        """
+        logger.debug("Veri toplama döngüsü başlıyor...")
         collected_readings = []
         try:
             burst_duration_seconds = settings.DATA_BURST_DURATION_MINUTES * 60
             sample_interval = settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS
             
-            # --- DÜZELTİLEN BÖLÜM: bar_format argümanı geri eklendi ---
-            with tqdm(total=burst_duration_seconds, 
-                      desc="🔥 Veri Toplanıyor", 
-                      bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s", 
-                      leave=False) as pbar:
-                
-                # Daha kararlı zamanlama için time.time() kullanıyoruz
+            with tqdm(total=burst_duration_seconds, desc="🔥 Veri Toplanıyor", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s", leave=False, file=sys.stdout) as pbar:
                 end_time = time.time() + burst_duration_seconds
                 while time.time() < end_time:
+                    # ... (iç döngü aynı kalıyor)
                     start_loop_time = time.time()
-                    
                     reading = self.collector.collect_single_reading()
                     processed = self.processor.process(reading)
                     collected_readings.append(processed)
-                    
                     loop_duration = time.time() - start_loop_time
                     sleep_time = max(0, sample_interval - loop_duration)
                     time.sleep(sleep_time)
                     pbar.update(sample_interval)
 
             if not collected_readings:
+                logger.warning("Döngüde hiç veri toplanamadı.")
                 return
 
             summary_reading = self.processor.analyze_readings(collected_readings)
@@ -91,31 +84,33 @@ class JobScheduler:
             self.csv_service.save_readings_to_csv([summary_reading])
 
             self._print_summary(summary_reading, status_icon="✅")
+            logger.info(f"Döngü tamamlandı. {len(collected_readings)} örnek işlendi.")
 
         except Exception as e:
+            # exc_info=True, hatanın traceback'ini log dosyasına otomatik ekler.
+            logger.error(f"Veri toplama döngüsünde beklenmedik hata", exc_info=True)
             error_title = "Döngü Hatası"
-            error_details = f"Hata: {e}\nTraceback:\n{traceback.format_exc()}"
+            error_details = f"Detaylar için log dosyasını kontrol edin: meteo_station.log"
+            self.notification_service.send_error_notification(error_title, error_details)
+
+            # Arayüzde hata bildirimi
             now_str = datetime.now().strftime('%H:%M:%S')
-            error_line = f"[{now_str}] ❌ | Hata: {e}"
+            error_line = f"[{now_str}] ❌ | Hata oluştu. Detaylar log dosyasında."
             print(' ' * len(self.last_summary_line), end='\r')
             print(error_line)
             self.last_summary_line = error_line
-            
-            self.notification_service.send_error_notification(error_title, error_details)
 
     def run(self):
-        """Zamanlayıcıyı başlatır ve sonsuz döngüde çalıştırır."""
-        print("🚀 Meteoroloji İstasyonu Başlatılıyor...")
+        setup_logging()  # Loglama sistemini en başta kur
+        logger.info("🚀 Meteoroloji İstasyonu Başlatılıyor...")
+        
         self.sensor_manager.discover_ports()
         self.sensor_manager.connect()
         self.notification_service.send_startup_notification()
         self.setup_schedule()
         
-        interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
-        burst_duration = settings.DATA_BURST_DURATION_MINUTES
         print("---")
-        print(f"🗓️  Görev ayarlandı: Her {interval} dakikada bir, {burst_duration} dk veri toplanacak.")
-        print("✨ Sistem aktif. İlk döngü çalıştırılıyor...")
+        print(f"✨ Sistem aktif. İlk döngü çalıştırılıyor...")
         
         self.run_collection_cycle_task()
 
@@ -125,6 +120,7 @@ class JobScheduler:
                 time.sleep(1)
         except KeyboardInterrupt:
             print("\n🛑 Program kullanıcı tarafından durduruldu.")
+            logger.info("Program kullanıcı tarafından durduruldu.")
         finally:
             self.sensor_manager.disconnect()
-            print("👋 Hoşçakalın!")
+            logger.info("👋 Hoşçakalın!")

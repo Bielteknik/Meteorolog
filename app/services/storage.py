@@ -1,3 +1,4 @@
+from venv import logger
 import pandas as pd
 import pathlib
 from datetime import datetime
@@ -36,4 +37,4 @@ class CsvStorageService:
         # Dosya zaten varsa, başlık olmadan ekle. Yoksa, başlıkla oluştur.
         header = not file_path.exists()
         df_new.to_csv(file_path, mode='a', header=header, index=False)
-        print(f"💾 {len(readings)} okuma '{file_path.name}' dosyasına kaydedildi.")
+        logger.info(f"💾 {len(readings)} okuma '{file_path.name}' dosyasına kaydedildi.")

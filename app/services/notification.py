@@ -3,6 +3,7 @@ import socket
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+from venv import logger
 
 from app.config import _settings
 
@@ -42,10 +43,10 @@ class NotificationService:
             server.login(self.sender_email, self.sender_password)
             server.send_message(email)
             server.quit()
-            print(f"✅ E-posta gönderildi: {subject}")
+            logger.info(f"✅ E-posta gönderildi: {subject}")
             return True
         except Exception as e:
-            print(f"❌ E-posta gönderme hatası: {e}")
+            logger.error(f"❌ E-posta gönderme hatası: {e}")
             return False
 
     def send_startup_notification(self):
