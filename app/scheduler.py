@@ -42,20 +42,22 @@ class JobScheduler:
         """Tüm zamanlanmış görevleri ayarlar."""
         print("🗓️ Zamanlanmış görevler ayarlanıyor...")
         
-        # Her saniye veri okuma ve işleme görevi
+        # 'do' metoduna fonksiyonu ilk argüman olarak,
+        # diğer parametreleri ise anahtar kelime argümanları (kwargs) olarak iletiyoruz.
+        # Bu, 'TypeError' hatasını çözer.
+        
         schedule.every(1).seconds.do(
             self._run_safely,
             job_func=self.collect_and_process_data_task,
             job_name="Veri Toplama ve İşleme"
         )
-
-        # Belirlenen aralıklarla veriyi depolama görevi
+    
         schedule.every(settings.DATA_COLLECTION_DURATION_SECONDS).seconds.do(
             self._run_safely,
             job_func=self.save_buffered_data_task,
             job_name="Toplu Veri Kaydetme"
         )
-
+    
         print(f"  - Her saniye veri okunacak.")
         print(f"  - Her {settings.DATA_COLLECTION_DURATION_SECONDS} saniyede bir veriler kaydedilecek.")
 
