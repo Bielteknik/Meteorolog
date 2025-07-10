@@ -25,8 +25,6 @@ DATA_BURST_SAMPLE_INTERVAL_SECONDS: int = int(os.getenv("DATA_BURST_SAMPLE_INTER
 
 
 # --- Sensör Ayarları ---
-# Not: Seri port isimleri (SENSOR_HEIGHT_PORT vb.) kaldırıldı.
-# Sistem artık portları otomatik olarak "koklayarak" buluyor.
 SENSOR_ZERO_DISTANCE_MM: float = float(os.getenv("SENSOR_ZERO_DISTANCE_MM", "3700.0"))
 MEASUREMENT_AREA_M2: float = float(os.getenv("MEASUREMENT_AREA_M2", "1.0"))
 I2C_BUS: int = 1
@@ -41,6 +39,11 @@ VALIDATION_RANGES = {
     "temperature_c": (-40, 85),
     "humidity_perc": (0, 100),
 }
+
+# --- OpenWeatherMap API Ayarları (YEDEK SİSTEM) ---
+OWM_API_KEY: str = os.getenv("OWM_API_KEY", "")
+OWM_LATITUDE: str = os.getenv("OWM_LATITUDE", "")  # Örnek: "41.015137"
+OWM_LONGITUDE: str = os.getenv("OWM_LONGITUDE", "") # Örnek: "28.979530"
 
 
 # --- E-posta Ayarları ---
