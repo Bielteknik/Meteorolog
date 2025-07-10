@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class JobScheduler:
     def __init__(self):
+        # ... Bu kısımda değişiklik yok ...
         self.console = Console()
         self.sensor_manager = SensorManager()
         self.processor = DataProcessor()
@@ -33,7 +34,7 @@ class JobScheduler:
         self.remote_api = RemoteApiService()
 
     def setup_schedule(self):
-        # ... Bu metodda değişiklik yok ...
+        # ... Bu kısımda değişiklik yok ...
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle)
         logger.info(f"Ana görev {interval} dakikada bir çalışacak şekilde ayarlandı.")
@@ -41,7 +42,7 @@ class JobScheduler:
         logger.info("Uzak API'ye veri gönderme görevi her saatin 1. dakikasında çalışacak şekilde ayarlandı.")
 
     def run_remote_post_job(self):
-        # ... Bu metodda değişiklik yok ...
+        # ... Bu kısımda değişiklik yok ...
         logger.info("Uzak API'ye veri gönderme görevi başlatılıyor...")
         try:
             latest_reading = self.db_service.get_latest_reading()
@@ -53,103 +54,92 @@ class JobScheduler:
 
     def run_collection_cycle(self):
         logger.info("Veri toplama döngüsü başlatılıyor...")
+        cycle_events: List[Dict[str, str]] = []
         burst_anomalies: Dict[str, str] = {}
         try:
+            # 1. Bağlan ve Hazırla
             self.sensor_manager.discover_and_connect()
-            self._print_startup_summary()
             self.sensor_manager.prepare_for_reading()
+            
+            # Bağlantı hatalarını olay listesine ekle
+            if not self.sensor_manager.is_height_connected:
+                cycle_events.append({"category": "📏 Yükseklik Sensörü", "status": "❌ BAŞARISIZ", "detail": "Port bulunamadı."})
             if not self.sensor_manager.is_temp_hum_connected:
+                cycle_events.append({"category": "🔌 I2C Sensörü (S/N)", "status": "❌ BAŞARISIZ", "detail": "Bağlantı zaman aşımına uğradı (Kablolama?)."})
                 if not self.collector.owm_service.is_fallback_active:
-                    logger.warning("I2C sensor not found. Activating OWM fallback for this cycle.")
                     self.collector.owm_service.is_fallback_active = True
-                    self.collector.owm_service.update_cache(force_update=True)
+                    is_updated = self.collector.owm_service.update_cache(force_update=True)
+                    if not is_updated:
+                         cycle_events.append({"category": "📡 OWM API (Yedek)", "status": "❌ BAŞARISIZ", "detail": "İnternet/DNS sorunu: API'ye ulaşılamadı."})
             else: self.collector.owm_service.is_fallback_active = False
 
+            # 2. Veri Topla
             collected_readings: List[ProcessedReading] = []
             burst_duration = timedelta(minutes=settings.DATA_BURST_DURATION_MINUTES)
-            sample_interval = timedelta(seconds=settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS)
             end_time = datetime.now() + burst_duration
-
             with tqdm(total=int(burst_duration.total_seconds()), desc="[bold magenta]🔥 Veri Toplanıyor[/bold magenta]", bar_format="{l_bar}{bar}|", file=sys.stdout, leave=True) as pbar:
                 while datetime.now() < end_time:
                     start_loop_time = time.time()
                     raw_data = self.collector.collect_raw_data()
                     processed_data, anomalies = self.processor.process_single_reading(raw_data)
-                    if anomalies:
-                        burst_anomalies.update(anomalies)
+                    if anomalies: burst_anomalies.update(anomalies)
                     collected_readings.append(processed_data)
-                    loop_duration = time.time() - start_loop_time
-                    sleep_time = max(0, sample_interval.total_seconds() - loop_duration)
+                    sleep_time = max(0, settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS - (time.time() - start_loop_time))
                     time.sleep(sleep_time)
-                    pbar.update(int(sample_interval.total_seconds()))
+                    pbar.update(int(settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS))
             print()
 
-            if burst_anomalies:
-                self._print_anomaly_report(burst_anomalies)
-                error_details = "\n".join([f"- {metric}: {detail}" for metric, detail in burst_anomalies.items()])
-                self.notification_service.send_error_notification("Döngü Sırasında Anomali Tespit Edildi", error_details)
+            # 3. Raporlama ve Kaydetme
+            for metric, detail in burst_anomalies.items():
+                parts = detail.split('|'); anomaly_type = parts[0].strip()
+                cycle_events.append({"category": f"{metric} Verisi", "status": "⚠️ ANOMALİ", "detail": detail})
+
+            if cycle_events:
+                self._print_cycle_report(cycle_events)
+                error_details = "\n".join([f"- {e['category']} ({e['status']}): {e['detail']}" for e in cycle_events])
+                self.notification_service.send_error_notification("Döngü Sırasında Olay Tespit Edildi", error_details)
 
             if not collected_readings:
                 logger.warning("Veri toplama patlaması sonucunda hiç veri elde edilemedi.")
-                self._print_summary(ProcessedReading(), status_icon="⚠️")
+                self._print_summary(ProcessedReading(), status_icon="❌")
                 return
 
             summary_reading = self.processor.analyze_burst_readings(collected_readings)
             self.db_service.save_reading(summary_reading)
             self.csv_service.save_readings_to_csv([summary_reading])
-            self._print_summary(summary_reading, status_icon="✅")
-            logger.info(f"Döngü başarıyla tamamlandı. {len(collected_readings)} anlık okumanın ortalaması kaydedildi.")
+            
+            summary_status_icon = "⚠️" if cycle_events else "✅"
+            self._print_summary(summary_reading, status_icon=summary_status_icon)
+            logger.info("Döngü başarıyla tamamlandı.")
         except Exception:
             logger.critical("Veri toplama döngüsünde kritik bir hata oluştu!", exc_info=True)
             self.notification_service.send_error_notification("Kritik Döngü Hatası", traceback.format_exc())
-            print()
-            self._print_summary(ProcessedReading(), status_icon="❌")
         finally:
             self.sensor_manager.disconnect_all()
+            logger.info("Sensörler bir sonraki döngüye kadar kapatıldı.")
             self.console.print("[dim]Sensörler bir sonraki döngüye kadar kapatıldı.[/dim]")
 
-    def _print_anomaly_report(self, anomalies: Dict[str, str]):
-        """Tespit edilen anomalileri düzenli bir tablo formatında konsola basar."""
-        table = Table(title=f"⚠️ Anomali Özet Raporu ({datetime.now().strftime('%H:%M:%S')}) ⚠️", style="yellow", title_style="bold red")
-        table.add_column("Metrik", style="cyan", no_wrap=True)
-        table.add_column("Anomali Tipi", style="magenta")
-        table.add_column("Detay", style="yellow")
-
-        for metric, detail in anomalies.items():
-            parts = detail.split('|')
-            anomaly_type = parts[0].strip()
-            detail_text = parts[1].strip() if len(parts) > 1 else "N/A"
-            table.add_row(metric, anomaly_type, detail_text)
-        
+    def _print_cycle_report(self, events: List[Dict[str, str]]):
+        """Tespit edilen tüm olayları düzenli bir tablo formatında konsola basar."""
+        table = Table(title=f"📋 Döngü Özet Raporu ({datetime.now().strftime('%H:%M:%S')}) 📋", style="default", title_style="bold blue")
+        table.add_column("Olay Kategorisi", style="cyan", no_wrap=True)
+        table.add_column("Durum", style="default")
+        table.add_column("Detay", style="default")
+        for event in events:
+            status_style = "bold red" if "BAŞARISIZ" in event["status"] else "bold yellow"
+            table.add_row(event["category"], f"[{status_style}]{event['status']}[/{status_style}]", event["detail"])
         self.console.print(table)
-
+    
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
         # ... Bu metodda değişiklik yok ...
-        now = datetime.now(); next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
-        h_str = f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
-        w_str = f"{summary.weight_g:.0f} g" if summary.weight_g is not None else "N/A"
-        source_icon = "📡" if summary.temp_hum_source == "api" else "🔌"
-        t_str = f"{summary.temperature_c:.1f}°C" if summary.temperature_c is not None else "N/A"
-        hu_str = f"{summary.humidity_perc:.1f}%" if summary.humidity_perc is not None else "N/A"
-        summary_line = (f"[white on black][{now.strftime('%H:%M:%S')}][/white on black] {status_icon} | 📏 [bold cyan]{h_str.ljust(9)}[/bold cyan] | ⚖️  [bold green]{w_str.ljust(8)}[/bold green] | {source_icon}🌡️ [bold yellow]{t_str.ljust(7)}[/bold yellow] | 💧 [bold blue]{hu_str.ljust(6)}[/bold blue] | ⏳ [dim]{next_run_time.strftime('%H:%M')}[/dim]")
+        now=datetime.now(); next_run_time=now+timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
+        h_str=f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
+        w_str=f"{summary.weight_g:.0f} g" if summary.weight_g is not None else "N/A"
+        source_icon="📡" if summary.temp_hum_source=="api" else "🔌"
+        t_str=f"{summary.temperature_c:.1f}°C" if summary.temperature_c is not None else "N/A"
+        hu_str=f"{summary.humidity_perc:.1f}%" if summary.humidity_perc is not None else "N/A"
+        summary_line=(f"[white on black][{now.strftime('%H:%M:%S')}][/white on black] {status_icon} | 📏 [bold cyan]{h_str.ljust(9)}[/bold cyan] | ⚖️  [bold green]{w_str.ljust(8)}[/bold green] | {source_icon}🌡️ [bold yellow]{t_str.ljust(7)}[/bold yellow] | 💧 [bold blue]{hu_str.ljust(6)}[/bold blue] | ⏳ [dim]{next_run_time.strftime('%H:%M')}[/dim]")
         self.console.print(summary_line)
-
-    def _print_startup_summary(self):
-        # ... Bu metodda değişiklik yok ...
-        table = Table(title="🚀 Meteoroloji İstasyonu Servis Durumu 🚀", style="cyan", title_style="bold magenta")
-        table.add_column("Bileşen", style="bold green"); table.add_column("Durum", style="bold"); table.add_column("Detay", style="cyan")
-        h_status = "[bold green]BAŞARILI[/bold green]" if self.sensor_manager.is_height_connected else "[bold yellow]BAŞARISIZ[/bold yellow]"
-        h_detail = self.sensor_manager.height_port or "Port bulunamadı."
-        table.add_row("📏 Yükseklik Sensörü", h_status, h_detail)
-        w_status = "[bold green]BAŞARILI[/bold green]" if self.sensor_manager.is_weight_connected else "[bold yellow]BAŞARISIZ[/bold yellow]"
-        w_detail = self.sensor_manager.weight_port or "Port bulunamadı."
-        table.add_row("⚖️  Ağırlık Sensörü", w_status, w_detail)
-        if self.sensor_manager.is_temp_hum_connected:
-            t_status = "[bold green]BAŞARILI[/bold green]"; t_detail = f"I2C Bus {settings.I2C_BUS} üzerinde bağlandı."
-        else:
-            t_status = "[bold red]YEDEK MOD AKTİF[/bold red]"; t_detail = f"I2C sensörü bulunamadı. OpenWeatherMap kullanılıyor."
-        table.add_row("🔌/📡 Sıcaklık/Nem", t_status, t_detail)
-        self.console.print(table)
 
     def run_forever(self):
         # ... Bu metodda değişiklik yok ...
@@ -165,7 +155,6 @@ class JobScheduler:
                 time.sleep(1)
         except KeyboardInterrupt:
             self.console.print("\n[bold red]🛑 Program kullanıcı tarafından durduruldu.[/bold red]")
-            logger.info("Program kullanıcı tarafından durduruldu.")
         finally:
             logger.info("👋 Hoşçakalın!")
             self.console.print("[bold blue]👋 Program sonlandırıldı.[/bold blue]")

@@ -3,7 +3,6 @@ from logging.handlers import RotatingFileHandler
 import sys
 from pathlib import Path
 
-# rich kütüphanesini konsol logları için kullanacağız
 from rich.logging import RichHandler
 
 def setup_logging():
@@ -13,30 +12,28 @@ def setup_logging():
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "meteo_station.log"
 
-    # Log formatı (dosya için)
     log_format = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    # 1. Dosya Handler'ı - Tüm detaylı logları dosyaya yazar (INFO seviyesinden)
+    # 1. Dosya Handler'ı - Tüm logları dosyaya yazar (INFO ve üstü)
     file_handler = RotatingFileHandler(
         log_file, maxBytes=5*1024*1024, backupCount=5, encoding='utf-8'
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(log_format)
 
-    # 2. Konsol Handler'ı - Sadece UYARI ve HATALARI konsola yazar (WARNING seviyesinden)
-    # Bu, normal çalışma sırasında konsolun temiz kalmasını sağlar.
+    # 2. Konsol Handler'ı - Sadece KRİTİK HATALARI konsola yazar (ERROR ve üstü)
+    # Bu, normal çalışma sırasında konsolun tamamen temiz kalmasını sağlar.
     console_handler = RichHandler(
-        level="WARNING", 
+        level="ERROR", 
         show_time=True, 
         show_path=False,
-        rich_tracebacks=True # Hataları daha okunabilir gösterir
+        rich_tracebacks=True
     )
 
-    # Kök logger'ı yapılandır
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO) # En düşük seviye INFO olmalı ki file_handler her şeyi alabilsin
+    root_logger.setLevel(logging.INFO) 
     
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
@@ -44,5 +41,4 @@ def setup_logging():
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
-    # Not: Başlangıç logunu INFO seviyesinde bırakıyoruz, bu sadece dosyaya yazılacak.
-    logging.info("Loglama sistemi kuruldu. Konsol log seviyesi: WARNING.")
+    logging.info("Loglama sistemi kuruldu. Konsol log seviyesi: ERROR.")
