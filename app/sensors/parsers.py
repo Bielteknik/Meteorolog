@@ -1,5 +1,3 @@
-# app/sensors/parsers.py - NİHAİ VERSİYON
-
 from typing import Optional, Tuple
 
 def parse_height_from_raw(data: bytes) -> Optional[float]:
@@ -11,6 +9,7 @@ def parse_height_from_raw(data: bytes) -> Optional[float]:
     try:
         str_data = data.decode('ascii', errors='ignore')
         if 'R' in str_data:
+            # En son 'R'yi bul, çünkü buffer'da birden fazla okuma olabilir
             start_idx = str_data.rfind('R') + 1
             if len(str_data) >= start_idx + 4:
                 distance_str = str_data[start_idx : start_idx + 4]

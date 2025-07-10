@@ -22,7 +22,9 @@ class DataCollector:
                     raw_data.height_raw = self.manager.height_ser.read(self.manager.height_ser.in_waiting)
             except Exception as e:
                 logger.error(f"Error reading from height sensor: {e}")
-                self.manager.is_height_connected = False
+                # ÖNEMLİ DÜZELTME: Anlık okuma hatası sensörü kalıcı olarak
+                # devre dışı bırakmamalı. Bu satır bu yüzden kaldırıldı.
+                # self.manager.is_height_connected = False
 
         if self.manager.is_weight_connected and self.manager.weight_ser:
             try:
@@ -30,7 +32,9 @@ class DataCollector:
                     raw_data.weight_raw = self.manager.weight_ser.readline()
             except Exception as e:
                 logger.error(f"Error reading from weight sensor: {e}")
-                self.manager.is_weight_connected = False
+                # ÖNEMLİ DÜZELTME: Anlık okuma hatası sensörü kalıcı olarak
+                # devre dışı bırakmamalı. Bu satır bu yüzden kaldırıldı.
+                # self.manager.is_weight_connected = False
 
         if self.manager.is_temp_hum_connected and self.manager.i2c_bus:
             try:
@@ -41,6 +45,8 @@ class DataCollector:
                 raw_data.temp_hum_raw = self.manager.i2c_bus.read_i2c_block_data(settings.I2C_SHT3X_ADDRESS, 0x00, 6)
             except Exception as e:
                 logger.error(f"Error reading from I2C sensor: {e}")
-                self.manager.is_temp_hum_connected = False
+                # ÖNEMLİ DÜZELTME: Anlık okuma hatası sensörü kalıcı olarak
+                # devre dışı bırakmamalı. Bu satır bu yüzden kaldırıldı.
+                # self.manager.is_temp_hum_connected = False
         
         return raw_data
