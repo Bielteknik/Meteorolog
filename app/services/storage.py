@@ -21,12 +21,13 @@ class CsvStorageService:
     def save_readings_to_csv(self, readings: List[ProcessedReading]):
         """
         Verilen okuma listesini, günün tarihine göre adlandırılmış 
-        bir CSV dosyasına ekler.
+        bir CSV dosyasına ekler ve sayısal değerleri formatlar.
         """
         if not readings:
             return
 
         try:
+            # Dosya adında 'log' kelimesi gereksiz, kaldıralım.
             today_str = readings[0].timestamp.strftime('%Y%m%d')
             file_path = self.folder_path / f"sensor_data_{today_str}.csv"
 
@@ -36,9 +37,27 @@ class CsvStorageService:
             # Timestamp sütununu daha okunabilir bir formata getir
             df_new['timestamp'] = pd.to_datetime(df_new['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
 
-            # Dosya zaten varsa, başlık olmadan ekle. Yoksa, başlıkla oluştur.
+            # YENİ: Ondalıklı sayıları formatla
+            # Yuvarlanacak sütunları ve basamak sayılarını belirle
+            float_format_map = {
+                "height_mm": "%.2f",
+                "weight_g": "%.2f",
+                "temperature_c": "%.2f",
+                "humidity_perc": "%.2f",
+                "snow_height_mm": "%.2f",
+                "density_kg_m3": "%.2f"
+            }
+            
+            # to_csv fonksiyonu float_format parametresini doğrudan destekler
             header = not file_path.exists()
-            df_new.to_csv(file_path, mode='a', header=header, index=False, encoding='utf-8')
+            df_new.to_csv(
+                file_path, 
+                mode='a', 
+                header=header, 
+                index=False, 
+                encoding='utf-8',
+                float_format='%.2f' # Tüm float'ları 2 basamağa yuvarla
+            )
             
             logger.debug(f"{len(readings)} reading(s) saved to '{file_path.name}'.")
 
