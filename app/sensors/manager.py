@@ -17,31 +17,28 @@ if not settings.DEV_MODE:
         raise
 else:
     # Windows'ta geliştirme yaparken bu blok çalışır ve donanımı simüle eder.
+    # ... (Bu kısım aynı kalabilir, değişiklik yok)
     logging.warning("DEV_MODE is active. Using dummy sensor classes.")
     
     class serial:
         class Serial:
             def __init__(self, port=None, baudrate=None, timeout=None):
-                self.port = port
-                self.is_open = True
-                self._dummy_data_type = "none"
+                self.port = port; self.is_open = True; self._dummy_data_type = "none"
                 if port and "H" in port: self._dummy_data_type = "height"
                 if port and "W" in port: self._dummy_data_type = "weight"
                 logging.info(f"[DEV_MODE] Dummy Serial connection created for port: {port}")
             def close(self): self.is_open = False; logging.info(f"[DEV_MODE] Dummy Serial connection closed for port: {self.port}")
             def read(self, size=1): 
                 if self._dummy_data_type == "height": return b'R1234'
+                if self._dummy_data_type == "weight": return b'=   12.34B0\r\n'
                 return b''
-            def readline(self):
-                if self._dummy_data_type == "weight": return b'=   12.34B0\n'
-                return b''
+            def readline(self): return self.read(10)
             def reset_input_buffer(self): pass
             @property
             def in_waiting(self): return 10
         
         class SerialException(Exception): pass
 
-        # DEV_MODE için sahte bir list_ports fonksiyonu
         @staticmethod
         def list_ports():
             class DummyPort: device = "DUMMY_H"
@@ -50,12 +47,12 @@ else:
         tools = type("tools", (), {"list_ports": list_ports})()
 
     class SMBus:
-        def __init__(self, bus=None):
-            logging.info(f"[DEV_MODE] Dummy SMBus created for bus: {bus}")
+        def __init__(self, bus=None): logging.info(f"[DEV_MODE] Dummy SMBus created for bus: {bus}")
         def write_i2c_block_data(self, addr, cmd, data): pass
         def read_i2c_block_data(self, addr, cmd, length): return [0] * length
         def write_byte(self, addr, val): pass
         def close(self): logging.info("[DEV_MODE] Dummy SMBus connection closed.")
+
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +73,7 @@ class SensorManager:
         self.height_port: str | None = None
         self.weight_port: str | None = None
 
-    def _sniff_ports(self, duration_seconds: int = 30) -> Dict[str, str]:
+    def _sniff_ports(self, duration_seconds: int = 15) -> Dict[str, str]: # Süreyi kısalttık
         """
         Seri portları tarar, belirli bir süre dinler ve veri formatına göre
         sensör tipini (height, weight) belirler.
@@ -87,7 +84,8 @@ class SensorManager:
 
         potential_ports = [port.device for port in serial.tools.list_ports.comports() if 'ttyUSB' in port.device or 'ttyACM' in port.device]
         if not potential_ports:
-            logger.warning("No potential serial ports (ttyUSB*, ttyACM*) found.")
+            # Bu bir uyarı değil, bilgi. Konsolda görünmeyecek.
+            logger.info("No potential serial ports (ttyUSB*, ttyACM*) found.")
             return {}
 
         logger.info(f"Sniffing on ports: {potential_ports} for up to {duration_seconds} seconds...")
@@ -102,36 +100,32 @@ class SensorManager:
                 logger.error(f"Could not open port {port_name} for sniffing: {e}")
 
         if not open_ports:
-            logger.error("Could not open any serial ports for sniffing.")
             return {}
 
         end_time = time.time() + duration_seconds
         while time.time() < end_time and len(sensor_map) < len(open_ports):
-            ports_to_remove = []
             for port_name, ser_conn in open_ports.items():
                 if port_name in sensor_map: continue
                 try:
                     if ser_conn.in_waiting > 0:
-                        line_data = ser_conn.readline()
-                        if parse_weight_from_raw(line_data) is not None:
-                            logger.info(f"✅ Found WEIGHT sensor on port {port_name}!")
+                        # YENİ MANTIK: readline() yerine belirli bir miktar byte oku
+                        # Bir okuma ~12 byte, buffer'da birkaç tane olabilir diye 64 okuyalım.
+                        chunk = ser_conn.read(64)
+                        
+                        # Okunan chunk içinde desenleri ara
+                        if parse_weight_from_raw(chunk) is not None:
+                            logger.info(f"Found WEIGHT sensor pattern on port {port_name}!")
                             sensor_map[port_name] = "weight"
                             continue
 
-                        raw_data = line_data + ser_conn.read(ser_conn.in_waiting)
-                        if parse_height_from_raw(raw_data) is not None:
-                            logger.info(f"✅ Found HEIGHT sensor on port {port_name}!")
+                        if parse_height_from_raw(chunk) is not None:
+                            logger.info(f"Found HEIGHT sensor pattern on port {port_name}!")
                             sensor_map[port_name] = "height"
                             continue
                 except serial.SerialException as e:
                     logger.error(f"Error reading from {port_name} during sniffing: {e}")
-                    ports_to_remove.append(port_name)
-
-            for port_name in set(ports_to_remove):
-                if port_name in open_ports:
-                    open_ports[port_name].close()
             
-            if len(sensor_map) >= 2: break
+            if len(sensor_map) >= len(potential_ports): break
             time.sleep(0.5)
 
         for ser_conn in open_ports.values():
@@ -140,6 +134,8 @@ class SensorManager:
         logger.info(f"Sniffing complete. Sensor map: {sensor_map}")
         return sensor_map
 
+    # discover_and_connect, _connect_all ve disconnect_all metodları aynı kalıyor
+    # ... (kodun geri kalanı bir önceki versiyon ile aynı) ...
     def discover_and_connect(self):
         """Portları koklayarak sensörleri keşfeder ve bulduğu sensörlere bağlanır."""
         logger.info("--- Starting Sensor Discovery (Sniffing Mode) ---")
