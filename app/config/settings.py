@@ -53,3 +53,6 @@ EMAIL_SMTP_PORT: int = int(os.getenv("METEO_EMAIL_SMTP_PORT", "587"))
 EMAIL_SENDER: str = os.getenv("EMAIL_SENDER", "")
 EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "")
 EMAIL_RECIPIENT: str = os.getenv("EMAIL_RECIPIENT", "")
+
+# YENİ: Uzak API uç noktası ayarı
+REMOTE_API_ENDPOINT: str = os.getenv("REMOTE_API_ENDPOINT", "https://rm.ejder3200.com/api/MeteorolojiIstasyon/Postveriekle")

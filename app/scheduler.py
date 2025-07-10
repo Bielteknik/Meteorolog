@@ -17,6 +17,7 @@ from app.core.processor import DataProcessor
 from app.services.database import DatabaseService
 from app.services.storage import CsvStorageService
 from app.services.notification import NotificationService
+from app.services.remote_api_service import RemoteApiService # GÜNCELLENDİ
 
 logger = logging.getLogger(__name__)
 
@@ -29,23 +30,57 @@ class JobScheduler:
         self.db_service = DatabaseService()
         self.csv_service = CsvStorageService()
         self.notification_service = NotificationService()
-        # DEĞİŞİKLİK: Artık bu değişkene ihtiyacımız kalmadı.
-        # self.last_summary_line = ""
+        self.remote_api = RemoteApiService() # GÜNCELLENDİ
 
     def setup_schedule(self):
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle)
         logger.info(f"Ana görev {interval} dakikada bir çalışacak şekilde ayarlandı.")
 
-    def run_collection_cycle(self):
-        logger.info("Veri toplama döngüsü başlatılıyor...")
-        collected_readings: List[ProcessedReading] = []
+        schedule.every().hour.at(":01").do(self.run_remote_post_job)
+        logger.info("Uzak API'ye veri gönderme görevi her saatin 1. dakikasında çalışacak şekilde ayarlandı.")
+
+    def run_remote_post_job(self):
+        """Veritabanındaki en son veriyi alır ve uzak API'ye gönderir."""
+        logger.info("Uzak API'ye veri gönderme görevi başlatılıyor...")
         try:
+            latest_reading = self.db_service.get_latest_reading()
+            if latest_reading:
+                self.remote_api.post_reading(latest_reading)
+            else:
+                logger.warning("Uzak API'ye göndermek için veritabanında hiç kayıt bulunamadı.")
+        except Exception as e:
+            logger.error(f"Uzak API'ye veri gönderme görevinde beklenmedik bir hata oluştu: {e}", exc_info=True)
+            self.notification_service.send_error_notification("Uzak API'ye Veri Gönderme Hatası", traceback.format_exc())
+
+    def run_collection_cycle(self):
+        """
+        Sensörleri açar, okuma yapar, işler, kaydeder ve sonra sensörleri kapatır.
+        Bu metod, enerji verimliliği ve sağlamlık için her döngüde bu adımları tekrar eder.
+        """
+        logger.info("Veri toplama döngüsü başlatılıyor...")
+        try:
+            # --- 1. AŞAMA: Bağlan ve Hazırla ---
+            self.sensor_manager.discover_and_connect()
+            self._print_startup_summary() # Her döngü başında durumu gösterelim
+            self.sensor_manager.prepare_for_reading() # Buffer'ları temizle
+
+            # I2C sensörü bulunamazsa OWM'yi hemen aktifleştir
+            if not self.sensor_manager.is_temp_hum_connected:
+                 if not self.collector.owm_service.is_fallback_active:
+                    logger.warning("I2C sensor not found. Activating OWM fallback for this cycle.")
+                    self.collector.owm_service.is_fallback_active = True
+                    self.collector.owm_service.update_cache(force_update=True)
+            else:
+                 self.collector.owm_service.is_fallback_active = False
+
+
+            # --- 2. AŞAMA: Veri Topla ---
+            collected_readings: List[ProcessedReading] = []
             burst_duration = timedelta(minutes=settings.DATA_BURST_DURATION_MINUTES)
             sample_interval = timedelta(seconds=settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS)
             end_time = datetime.now() + burst_duration
 
-            # leave=True, ilerleme çubuğunun döngü bittiğinde ekranda kalmasını sağlar.
             with tqdm(total=int(burst_duration.total_seconds()), desc="[bold magenta]🔥 Veri Toplanıyor[/bold magenta]", bar_format="{l_bar}{bar}|", file=sys.stdout, leave=True) as pbar:
                 while datetime.now() < end_time:
                     start_loop_time = time.time()
@@ -56,10 +91,10 @@ class JobScheduler:
                     sleep_time = max(0, sample_interval.total_seconds() - loop_duration)
                     time.sleep(sleep_time)
                     pbar.update(int(sample_interval.total_seconds()))
+            
+            print()
 
-            # tqdm satırından sonra yeni bir satıra geçmek için boş bir print.
-            print() 
-
+            # --- 3. AŞAMA: İşle ve Kaydet ---
             if not collected_readings:
                 logger.warning("Veri toplama patlaması sonucunda hiç veri elde edilemedi.")
                 self._print_summary(ProcessedReading(), status_icon="⚠️")
@@ -77,9 +112,16 @@ class JobScheduler:
             self.notification_service.send_error_notification("Kritik Döngü Hatası", traceback.format_exc())
             print()
             self._print_summary(ProcessedReading(), status_icon="❌")
+        
+        finally:
+            # --- 4. AŞAMA: Bağlantıyı Kes (Enerji Verimliliği) ---
+            # Bu blok, yukarıda bir hata olsa bile her zaman çalışır.
+            self.sensor_manager.disconnect_all()
+            self.console.print("[dim]Sensörler bir sonraki döngüye kadar kapatıldı.[/dim]")
+
 
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
-        # DEĞİŞİKLİK: Çıktıyı yazdırmak için artık rich.console kullanıyoruz.
+        # ... Bu metodda değişiklik yok ...
         now = datetime.now()
         next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
         h_str = f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
@@ -88,7 +130,6 @@ class JobScheduler:
         t_str = f"{summary.temperature_c:.1f}°C" if summary.temperature_c is not None else "N/A"
         hu_str = f"{summary.humidity_perc:.1f}%" if summary.humidity_perc is not None else "N/A"
         
-        # rich'in biçimlendirme etiketlerini kullanarak satırı oluştur
         summary_line = (
             f"[white on black][{now.strftime('%H:%M:%S')}][/white on black] {status_icon} | "
             f"📏 [bold cyan]{h_str.ljust(9)}[/bold cyan] | "
@@ -98,11 +139,10 @@ class JobScheduler:
             f"⏳ [dim]{next_run_time.strftime('%H:%M')}[/dim]"
         )
         
-        # self.console.print ile satırı yazdır. Bu, \r'den daha güvenilirdir.
         self.console.print(summary_line)
 
     def _print_startup_summary(self):
-        # Bu fonksiyonda değişiklik yok.
+        # ... Bu metodda değişiklik yok ...
         table = Table(title="🚀 Meteoroloji İstasyonu Servis Durumu 🚀", style="cyan", title_style="bold magenta")
         table.add_column("Bileşen", style="bold green"); table.add_column("Durum", style="bold"); table.add_column("Detay", style="cyan")
         h_status = "[bold green]BAŞARILI[/bold green]" if self.sensor_manager.is_height_connected else "[bold yellow]BAŞARISIZ[/bold yellow]"
@@ -119,19 +159,14 @@ class JobScheduler:
         self.console.print(table)
 
     def run_forever(self):
-        # Bu fonksiyonda da çıktı yönetimi dışında değişiklik yok.
         logger.info("Meteoroloji İstasyonu Servisi Başlatılıyor...")
-        self.sensor_manager.discover_and_connect()
-        if not self.sensor_manager.is_temp_hum_connected:
-            logger.warning("I2C sensor not found on startup. Activating OWM fallback immediately.")
-            self.collector.owm_service.is_fallback_active = True
-            self.collector.owm_service.update_cache(force_update=True)
-        self._print_startup_summary()
         self.notification_service.send_startup_notification()
         self.setup_schedule()
+        
         self.console.print("\n[bold green]✨ Sistem aktif. İlk döngü hemen başlatılıyor...[/bold green]")
         self.run_collection_cycle()
         self.console.print(f"\n[bold green]✨ Normal zamanlama döngüsü bekleniyor. Sonraki çalışma yaklaşık {settings.DATA_COLLECTION_INTERVAL_MINUTES} dakika içinde.[/bold green]")
+        
         try:
             while True:
                 schedule.run_pending()
@@ -140,6 +175,5 @@ class JobScheduler:
             self.console.print("\n[bold red]🛑 Program kullanıcı tarafından durduruldu.[/bold red]")
             logger.info("Program kullanıcı tarafından durduruldu.")
         finally:
-            self.sensor_manager.disconnect_all()
             logger.info("👋 Hoşçakalın!")
-            self.console.print("[bold blue]👋 Tüm bağlantılar kapatıldı. Hoşçakalın![/bold blue]")
+            self.console.print("[bold blue]👋 Program sonlandırıldı.[/bold blue]")

@@ -1,7 +1,8 @@
 import sqlite3
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Optional
+from datetime import datetime
 
 from app.config import settings
 from app.models.schemas import ProcessedReading
@@ -45,7 +46,8 @@ class DatabaseService:
                 height_status TEXT,
                 weight_status TEXT,
                 temperature_status TEXT,
-                humidity_status TEXT
+                humidity_status TEXT,
+                temp_hum_source TEXT 
             )
             ''')
             conn.commit()
@@ -54,15 +56,14 @@ class DatabaseService:
         except sqlite3.Error as e:
             logger.error(f"Failed to create 'readings' table: {e}")
 
-
     def save_reading(self, reading: ProcessedReading):
         """Tek bir işlenmiş okumayı (ProcessedReading) veritabanına kaydeder."""
         sql = '''
         INSERT INTO readings (
             timestamp, height_mm, weight_g, temperature_c, humidity_perc, 
             snow_height_mm, density_kg_m3, height_status, weight_status,
-            temperature_status, humidity_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            temperature_status, humidity_status, temp_hum_source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         '''
         data_tuple = (
             reading.timestamp.isoformat(),
@@ -76,6 +77,7 @@ class DatabaseService:
             reading.weight_status,
             reading.temperature_status,
             reading.humidity_status,
+            reading.temp_hum_source,
         )
 
         try:
@@ -87,3 +89,34 @@ class DatabaseService:
             logger.debug(f"Successfully saved a reading to the database with timestamp {reading.timestamp}.")
         except sqlite3.Error as e:
             logger.error(f"Failed to save reading to database: {e}")
+
+    def get_latest_reading(self) -> Optional[ProcessedReading]:
+        """Veritabanındaki en son kaydı bir ProcessedReading nesnesi olarak döndürür."""
+        sql = "SELECT * FROM readings ORDER BY timestamp DESC LIMIT 1"
+        try:
+            conn = self._get_connection()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                return ProcessedReading(
+                    timestamp=datetime.fromisoformat(row['timestamp']),
+                    height_mm=row['height_mm'],
+                    weight_g=row['weight_g'],
+                    temperature_c=row['temperature_c'],
+                    humidity_perc=row['humidity_perc'],
+                    snow_height_mm=row['snow_height_mm'],
+                    density_kg_m3=row['density_kg_m3'],
+                    height_status=row['height_status'],
+                    weight_status=row['weight_status'],
+                    temperature_status=row['temperature_status'],
+                    humidity_status=row['humidity_status'],
+                    temp_hum_source=row['temp_hum_source']
+                )
+            return None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get the latest reading from database: {e}")
+            return None
