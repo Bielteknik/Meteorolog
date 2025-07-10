@@ -3,44 +3,46 @@ from logging.handlers import RotatingFileHandler
 import sys
 from pathlib import Path
 
+# rich kütüphanesini konsol logları için kullanacağız
+from rich.logging import RichHandler
+
 def setup_logging():
     """Uygulama genelinde kullanılacak loglama sistemini kurar."""
     
-    # Proje kök dizininde bir 'logs' klasörü oluştur
     log_dir = Path(__file__).resolve().parent.parent.parent / "logs"
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "meteo_station.log"
 
-    # Log formatını belirle
+    # Log formatı (dosya için)
     log_format = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    # 1. Dosya Handler'ı (File Handler) - Tüm logları dosyaya yazar
-    # Dosya boyutu 5MB olunca eski logları 'meteo_station.log.1' gibi yedekler.
-    # En fazla 5 yedek dosya tutar.
+    # 1. Dosya Handler'ı - Tüm detaylı logları dosyaya yazar (INFO seviyesinden)
     file_handler = RotatingFileHandler(
         log_file, maxBytes=5*1024*1024, backupCount=5, encoding='utf-8'
     )
-    file_handler.setLevel(logging.INFO) # INFO ve üzerindeki her şeyi dosyaya yaz
+    file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(log_format)
 
-    # 2. Konsol Handler'ı (Stream Handler) - Sadece UYARI ve HATALARI konsola yazar
+    # 2. Konsol Handler'ı - Sadece UYARI ve HATALARI konsola yazar (WARNING seviyesinden)
     # Bu, normal çalışma sırasında konsolun temiz kalmasını sağlar.
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.WARNING) # Sadece WARNING ve ERROR'ları konsola yaz
-    console_handler.setFormatter(log_format)
+    console_handler = RichHandler(
+        level="WARNING", 
+        show_time=True, 
+        show_path=False,
+        rich_tracebacks=True # Hataları daha okunabilir gösterir
+    )
 
-    # Kök logger'ı al ve yapılandır
+    # Kök logger'ı yapılandır
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO) # En düşük log seviyesini ayarla
+    root_logger.setLevel(logging.INFO) # En düşük seviye INFO olmalı ki file_handler her şeyi alabilsin
     
-    # Eğer daha önce handler eklenmişse temizle (tekrar tekrar çalışmayı önler)
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
 
-    # Handler'ları kök logger'a ekle
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
-    logging.info("Loglama sistemi başarıyla kuruldu.")
+    # Not: Başlangıç logunu INFO seviyesinde bırakıyoruz, bu sadece dosyaya yazılacak.
+    logging.info("Loglama sistemi kuruldu. Konsol log seviyesi: WARNING.")

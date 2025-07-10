@@ -7,6 +7,10 @@ from datetime import datetime, timedelta
 from typing import List
 from tqdm import tqdm
 
+# rich kütüphanesinden tablo ve konsol özellikleri
+from rich.console import Console
+from rich.table import Table
+
 from app.config import settings
 from app.models.schemas import ProcessedReading
 from app.sensors.manager import SensorManager
@@ -20,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 class JobScheduler:
     def __init__(self):
+        # rich konsol nesnesini başlat
+        self.console = Console()
+
         self.sensor_manager = SensorManager()
         self.collector = DataCollector(self.sensor_manager)
         self.processor = DataProcessor()
@@ -28,13 +35,14 @@ class JobScheduler:
         self.notification_service = NotificationService()
         self.last_summary_line = ""
 
+    # ... setup_schedule, run_collection_cycle ve _print_summary aynı kalıyor ...
     def setup_schedule(self):
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle)
         logger.info(f"Ana görev {interval} dakikada bir çalışacak şekilde ayarlandı.")
 
     def run_collection_cycle(self):
-        # ... (Bu fonksiyonun içi aynı kalıyor, değişiklik yok)
+        """Bir tam veri toplama, işleme ve kaydetme döngüsünü yönetir."""
         logger.info("Veri toplama döngüsü başlatılıyor...")
         collected_readings: List[ProcessedReading] = []
         
@@ -43,7 +51,8 @@ class JobScheduler:
             sample_interval = timedelta(seconds=settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS)
             end_time = datetime.now() + burst_duration
 
-            with tqdm(total=int(burst_duration.total_seconds()), desc="🔥 Veri Toplanıyor", bar_format="{l_bar}{bar}|", file=sys.stdout, leave=False) as pbar:
+            # İlerleme çubuğunu doğrudan rich console'a yazdır
+            with tqdm(total=int(burst_duration.total_seconds()), desc="[bold magenta]🔥 Veri Toplanıyor[/bold magenta]", bar_format="{l_bar}{bar}|", file=sys.stdout, leave=False) as pbar:
                 while datetime.now() < end_time:
                     start_loop_time = time.time()
                     
@@ -75,59 +84,84 @@ class JobScheduler:
             self._print_summary(ProcessedReading(), status_icon="❌")
 
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
-        # ... (Bu fonksiyonun içi aynı kalıyor, değişiklik yok)
         now = datetime.now()
         next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
-
         h_str = f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
         w_str = f"{summary.weight_g:.0f} g" if summary.weight_g is not None else "N/A"
-        
-        # YENİ: Veri kaynağını göster
         source_icon = "📡" if summary.temp_hum_source == "api" else "🔌"
         t_str = f"{summary.temperature_c:.1f}°C" if summary.temperature_c is not None else "N/A"
         hu_str = f"{summary.humidity_perc:.1f}%" if summary.humidity_perc is not None else "N/A"
-
         summary_line = (
             f"[{now.strftime('%H:%M:%S')}] {status_icon} | "
             f"📏 {h_str.ljust(9)} | "
-            f"⚖️ {w_str.ljust(9)} | "
+            f"⚖️  {w_str.ljust(8)} | " # G hizalaması için bir boşluk eksilttim
             f"{source_icon}🌡️ {t_str.ljust(7)} | "
             f"💧 {hu_str.ljust(6)} | "
             f"⏳ {next_run_time.strftime('%H:%M')}"
         )
-        
         print(' ' * len(self.last_summary_line), file=sys.stdout, end='\r')
         self.last_summary_line = summary_line
         print(self.last_summary_line, file=sys.stdout, end='\r')
 
+    def _print_startup_summary(self):
+        """Başlangıçta sensör durumunu özetleyen bir tablo yazdırır."""
+        table = Table(title="🚀 Meteoroloji İstasyonu Servis Durumu 🚀", style="cyan", title_style="bold magenta")
+        table.add_column("Bileşen", style="bold green")
+        table.add_column("Durum", style="bold")
+        table.add_column("Detay", style="cyan")
+
+        # Yükseklik Sensörü
+        h_status = "[bold green]BAŞARILI[/bold green]" if self.sensor_manager.is_height_connected else "[bold yellow]BAŞARISIZ[/bold yellow]"
+        h_detail = self.sensor_manager.height_port or "Port bulunamadı."
+        table.add_row("📏 Yükseklik Sensörü", h_status, h_detail)
+
+        # Ağırlık Sensörü
+        w_status = "[bold green]BAŞARILI[/bold green]" if self.sensor_manager.is_weight_connected else "[bold yellow]BAŞARISIZ[/bold yellow]"
+        w_detail = self.sensor_manager.weight_port or "Port bulunamadı."
+        table.add_row("⚖️  Ağırlık Sensörü", w_status, w_detail)
+
+        # Sıcaklık/Nem Sensörü
+        if self.sensor_manager.is_temp_hum_connected:
+            t_status = "[bold green]BAŞARILI[/bold green]"
+            t_detail = f"I2C Bus {settings.I2C_BUS} üzerinde bağlandı."
+        else:
+            t_status = "[bold red]YEDEK MOD AKTİF[/bold red]"
+            t_detail = f"I2C sensörü bulunamadı. OpenWeatherMap kullanılıyor."
+        table.add_row("🔌/📡 Sıcaklık/Nem", t_status, t_detail)
+
+        self.console.print(table)
+
     def run_forever(self):
         """Zamanlayıcıyı başlatır ve sonsuz döngüde çalıştırır."""
-        logger.info("🚀 Meteoroloji İstasyonu Servisi Başlatılıyor...")
+        # Not: Buradaki INFO logları artık sadece dosyaya yazılacak.
+        logger.info("Meteoroloji İstasyonu Servisi Başlatılıyor...")
         self.sensor_manager.discover_and_connect()
         
-        # YENİ: BAŞLANGIÇ KONTROLÜ
-        # Eğer I2C sensörü başlangıçta bulunamadıysa, OWM'den ilk veriyi zorla çek.
         if not self.sensor_manager.is_temp_hum_connected:
             logger.warning("I2C sensor not found on startup. Activating OWM fallback immediately.")
             self.collector.owm_service.is_fallback_active = True
-            # `force_update=True` ile zaman kontrolü yapmadan ilk veriyi almasını sağla
             self.collector.owm_service.update_cache(force_update=True)
 
+        # YENİ: Başlangıç özetini yazdır
+        self._print_startup_summary()
+        
         self.notification_service.send_startup_notification()
         self.setup_schedule()
         
-        print("---")
-        print("✨ Sistem aktif. Test için ilk döngü hemen başlatılıyor...")
+        self.console.print("\n[bold green]✨ Sistem aktif. İlk döngü hemen başlatılıyor...[/bold green]")
         self.run_collection_cycle()
-        print(f"\n✨ Normal zamanlama döngüsü bekleniyor. Sonraki çalışma yaklaşık {settings.DATA_COLLECTION_INTERVAL_MINUTES} dakika içinde.")
+        
+        # \n ile bir önceki satırın üzerine yazmayı engelle
+        self.console.print(f"\n[bold green]✨ Normal zamanlama döngüsü bekleniyor. Sonraki çalışma yaklaşık {settings.DATA_COLLECTION_INTERVAL_MINUTES} dakika içinde.[/bold green]")
         
         try:
             while True:
                 schedule.run_pending()
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("\n🛑 Program kullanıcı tarafından durduruldu.")
+            self.console.print("\n[bold red]🛑 Program kullanıcı tarafından durduruldu.[/bold red]")
             logger.info("Program kullanıcı tarafından durduruldu.")
         finally:
             self.sensor_manager.disconnect_all()
             logger.info("👋 Hoşçakalın!")
+            self.console.print("[bold blue]👋 Tüm bağlantılar kapatıldı. Hoşçakalın![/bold blue]")
