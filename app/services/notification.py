@@ -1,4 +1,3 @@
-# app/services/notification.py
 import smtplib
 import socket
 import logging

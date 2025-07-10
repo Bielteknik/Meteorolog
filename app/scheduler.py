@@ -1,4 +1,3 @@
-# app/scheduler.py
 import schedule
 import time
 import logging

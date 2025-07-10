@@ -1,4 +1,3 @@
-# app/services/openweathermap_service.py
 import logging, requests
 from typing import Optional, Tuple
 from datetime import datetime
