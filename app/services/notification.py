@@ -1,3 +1,4 @@
+# app/services/notification.py
 import smtplib
 import socket
 import logging
@@ -12,15 +13,12 @@ logger = logging.getLogger(__name__)
 class NotificationService:
     """E-posta ile bildirim gönderme servisi."""
     def __init__(self):
-        # Ayarları her zaman oku
         self.enabled = settings.EMAIL_ENABLED
         self.smtp_server = settings.EMAIL_SMTP_SERVER
         self.smtp_port = settings.EMAIL_SMTP_PORT
         self.sender_email = settings.EMAIL_SENDER
         self.sender_password = settings.EMAIL_PASSWORD
         self.recipient_email = settings.EMAIL_RECIPIENT
-        
-        # Sunucu adını her zaman al
         try:
             self.hostname = socket.gethostname()
         except Exception:
@@ -29,11 +27,15 @@ class NotificationService:
 
     def _send_email(self, subject: str, message: str) -> bool:
         """E-posta gönderme işleminin çekirdeği."""
-        # Fonksiyonun en başında e-postanın aktif olup olmadığını kontrol et.
         if not self.enabled:
             logger.debug("Email notifications are disabled. Skipping sending.")
             return False
         
+        # DEĞİŞİKLİK: E-posta göndermeden önce ayarların tam olup olmadığını kontrol et
+        if not all([self.smtp_server, self.smtp_port, self.sender_email, self.sender_password, self.recipient_email]):
+            logger.warning("Email settings are incomplete. Skipping sending email.")
+            return False
+
         try:
             email = MIMEMultipart()
             email["From"] = self.sender_email
@@ -53,13 +55,12 @@ class NotificationService:
             logger.info(f"Email notification sent successfully: '{subject}'")
             return True
         except Exception as e:
-            logger.error(f"Failed to send email notification: {e}", exc_info=False)
+            # DEĞİŞİKLİK: Seviye 'error'dan 'warning'e düşürüldü.
+            logger.warning(f"Failed to send email notification: {e}", exc_info=False)
             return False
 
     def send_startup_notification(self):
         """Sistem başlangıcında bildirim gönderir."""
-        # Göndermeyi denemeden önce 'self.enabled' bayrağını kontrol etmeye gerek yok,
-        # çünkü _send_email fonksiyonu bu kontrolü zaten yapıyor.
         subject = "Meteoroloji Servisi Başlatıldı"
         message = f"Sistem başlatıldı.\n\nZaman: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nSunucu: {self.hostname}"
         self._send_email(subject, message)
