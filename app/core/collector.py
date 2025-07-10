@@ -21,7 +21,7 @@ class DataCollector:
         """Tüm bağlı sensörlerden veya API'lerden ham veriyi okur."""
         raw_data = RawSensorData()
 
-        # Seri port sensörleri (değişiklik yok)
+        # Seri port sensörleri
         if self.manager.is_height_connected and self.manager.height_ser:
             try:
                 if self.manager.height_ser.in_waiting > 0:
@@ -53,17 +53,14 @@ class DataCollector:
 
         # Durum değerlendirmesi ve veri kaynağı seçimi
         if i2c_read_success:
-            # I2C başarılı, yedek modu kapat
             if self.owm_service.is_fallback_active:
                 logger.info("Local I2C sensor is back online. Disabling OWM fallback mode.")
                 self.owm_service.is_fallback_active = False
         else:
-            # I2C başarısız, yedek modu aç ve OWM verisini al
             if not self.owm_service.is_fallback_active:
                 logger.warning("Local I2C sensor has failed. Activating OWM fallback mode.")
                 self.owm_service.is_fallback_active = True
             
-            # OWM servisinden önbelleğe alınmış/güncellenmiş veriyi al
             raw_data.temp_hum_api = self.owm_service.get_fallback_data()
         
         return raw_data

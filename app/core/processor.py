@@ -8,24 +8,26 @@ from app.sensors.parsers import (
     parse_weight_from_raw,
     parse_temp_hum_from_raw
 )
+from app.services.anomaly_service import AnomalyService
+from app.services.notification import NotificationService
 
 logger = logging.getLogger(__name__)
 
 class DataProcessor:
-    """Ham sensör verilerini işler, doğrular, ek hesaplamalar yapar ve analiz eder."""
+    """Ham sensör verilerini işler, doğrular, ek hesaplamalar yapar ve anomali tespiti yapar."""
+
+    def __init__(self):
+        self.anomaly_service = AnomalyService()
+        self.notification_service = NotificationService()
 
     def _validate_value(self, value: float | None, metric_name: str) -> Tuple[float | None, str]:
-        """Bir değeri alır, doğrulama aralığını kontrol eder ve değeri ile durumunu döndürür."""
         if value is None:
             return None, "NO_DATA"
-
         min_val, max_val = settings.VALIDATION_RANGES.get(metric_name, (None, None))
-        
         if min_val is not None and max_val is not None:
             if not (min_val <= value <= max_val):
                 logger.warning(f"Validation failed for {metric_name}: value {value} is out of range ({min_val}, {max_val}).")
                 return None, "OUT_OF_RANGE"
-        
         return value, "OK"
 
     def process_raw_data(self, raw_data: RawSensorData) -> ProcessedReading:
@@ -41,7 +43,6 @@ class DataProcessor:
         elif raw_data.temp_hum_api:
             temp, hum = raw_data.temp_hum_api
             source = "api"
-            # DEĞİŞİKLİK BURADA: Seviye 'info'dan 'debug'a düşürüldü.
             logger.debug("Processing temperature/humidity data from API source.")
             
         valid_height, height_status = self._validate_value(height, "height_mm")
@@ -52,7 +53,7 @@ class DataProcessor:
         snow_height = self._calculate_snow_height(valid_height)
         density = self._calculate_density(valid_weight, snow_height)
 
-        return ProcessedReading(
+        processed_reading = ProcessedReading(
             timestamp=raw_data.timestamp,
             height_mm=valid_height,
             weight_g=valid_weight,
@@ -66,6 +67,19 @@ class DataProcessor:
             humidity_status=hum_status,
             temp_hum_source=source
         )
+        
+        anomaly_statuses, alerts = self.anomaly_service.check_for_anomalies(processed_reading)
+        
+        if anomaly_statuses:
+            logger.info(f"Anomalies found, updating statuses: {anomaly_statuses}")
+            for status_key, status_value in anomaly_statuses.items():
+                setattr(processed_reading, status_key, status_value)
+        
+        if alerts:
+            error_details = "\n".join(alerts)
+            self.notification_service.send_error_notification("Anomaly Detected", error_details)
+
+        return processed_reading
 
     def _calculate_snow_height(self, height_mm: float | None) -> float | None:
         if height_mm is None:
@@ -85,10 +99,6 @@ class DataProcessor:
             return None
 
     def analyze_burst_readings(self, readings: List[ProcessedReading]) -> ProcessedReading:
-        """
-        Bir okuma listesini (burst) alır, istatistiksel özetini (ortalama) hesaplar
-        ve tek bir ProcessedReading nesnesi olarak döndürür.
-        """
         if not readings:
             logger.warning("analyze_burst_readings called with an empty list.")
             return ProcessedReading()

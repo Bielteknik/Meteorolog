@@ -17,7 +17,7 @@ from app.core.processor import DataProcessor
 from app.services.database import DatabaseService
 from app.services.storage import CsvStorageService
 from app.services.notification import NotificationService
-from app.services.remote_api_service import RemoteApiService # GÜNCELLENDİ
+from app.services.remote_api_service import RemoteApiService
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,8 @@ class JobScheduler:
         self.processor = DataProcessor()
         self.db_service = DatabaseService()
         self.csv_service = CsvStorageService()
-        self.notification_service = NotificationService()
-        self.remote_api = RemoteApiService() # GÜNCELLENDİ
+        self.notification_service = self.processor.notification_service
+        self.remote_api = RemoteApiService()
 
     def setup_schedule(self):
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
@@ -56,16 +56,14 @@ class JobScheduler:
     def run_collection_cycle(self):
         """
         Sensörleri açar, okuma yapar, işler, kaydeder ve sonra sensörleri kapatır.
-        Bu metod, enerji verimliliği ve sağlamlık için her döngüde bu adımları tekrar eder.
         """
         logger.info("Veri toplama döngüsü başlatılıyor...")
         try:
-            # --- 1. AŞAMA: Bağlan ve Hazırla ---
+            # 1. Bağlan ve Hazırla
             self.sensor_manager.discover_and_connect()
-            self._print_startup_summary() # Her döngü başında durumu gösterelim
-            self.sensor_manager.prepare_for_reading() # Buffer'ları temizle
+            self._print_startup_summary()
+            self.sensor_manager.prepare_for_reading()
 
-            # I2C sensörü bulunamazsa OWM'yi hemen aktifleştir
             if not self.sensor_manager.is_temp_hum_connected:
                  if not self.collector.owm_service.is_fallback_active:
                     logger.warning("I2C sensor not found. Activating OWM fallback for this cycle.")
@@ -74,8 +72,7 @@ class JobScheduler:
             else:
                  self.collector.owm_service.is_fallback_active = False
 
-
-            # --- 2. AŞAMA: Veri Topla ---
+            # 2. Veri Topla (Burst Reading)
             collected_readings: List[ProcessedReading] = []
             burst_duration = timedelta(minutes=settings.DATA_BURST_DURATION_MINUTES)
             sample_interval = timedelta(seconds=settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS)
@@ -84,8 +81,11 @@ class JobScheduler:
             with tqdm(total=int(burst_duration.total_seconds()), desc="[bold magenta]🔥 Veri Toplanıyor[/bold magenta]", bar_format="{l_bar}{bar}|", file=sys.stdout, leave=True) as pbar:
                 while datetime.now() < end_time:
                     start_loop_time = time.time()
+                    
+                    # AKIŞ: Ham veriyi topla, sonra işle. Bu en temiz yöntem.
                     raw_data = self.collector.collect_raw_data()
                     processed_data = self.processor.process_raw_data(raw_data)
+                    
                     collected_readings.append(processed_data)
                     loop_duration = time.time() - start_loop_time
                     sleep_time = max(0, sample_interval.total_seconds() - loop_duration)
@@ -94,7 +94,7 @@ class JobScheduler:
             
             print()
 
-            # --- 3. AŞAMA: İşle ve Kaydet ---
+            # 3. İşle ve Kaydet
             if not collected_readings:
                 logger.warning("Veri toplama patlaması sonucunda hiç veri elde edilemedi.")
                 self._print_summary(ProcessedReading(), status_icon="⚠️")
@@ -114,14 +114,11 @@ class JobScheduler:
             self._print_summary(ProcessedReading(), status_icon="❌")
         
         finally:
-            # --- 4. AŞAMA: Bağlantıyı Kes (Enerji Verimliliği) ---
-            # Bu blok, yukarıda bir hata olsa bile her zaman çalışır.
+            # 4. Bağlantıyı Kes
             self.sensor_manager.disconnect_all()
             self.console.print("[dim]Sensörler bir sonraki döngüye kadar kapatıldı.[/dim]")
 
-
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
-        # ... Bu metodda değişiklik yok ...
         now = datetime.now()
         next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
         h_str = f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
@@ -142,7 +139,6 @@ class JobScheduler:
         self.console.print(summary_line)
 
     def _print_startup_summary(self):
-        # ... Bu metodda değişiklik yok ...
         table = Table(title="🚀 Meteoroloji İstasyonu Servis Durumu 🚀", style="cyan", title_style="bold magenta")
         table.add_column("Bileşen", style="bold green"); table.add_column("Durum", style="bold"); table.add_column("Detay", style="cyan")
         h_status = "[bold green]BAŞARILI[/bold green]" if self.sensor_manager.is_height_connected else "[bold yellow]BAŞARISIZ[/bold yellow]"
