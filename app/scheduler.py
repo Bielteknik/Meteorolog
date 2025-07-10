@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 class JobScheduler:
     def __init__(self):
-        # Tüm servisleri ve yöneticileri başlat
         self.sensor_manager = SensorManager()
         self.collector = DataCollector(self.sensor_manager)
         self.processor = DataProcessor()
@@ -30,13 +29,12 @@ class JobScheduler:
         self.last_summary_line = ""
 
     def setup_schedule(self):
-        """Ana veri toplama döngüsünü zamanlar."""
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle)
         logger.info(f"Ana görev {interval} dakikada bir çalışacak şekilde ayarlandı.")
 
     def run_collection_cycle(self):
-        """Bir tam veri toplama, işleme ve kaydetme döngüsünü yönetir."""
+        # ... (Bu fonksiyonun içi aynı kalıyor, değişiklik yok)
         logger.info("Veri toplama döngüsü başlatılıyor...")
         collected_readings: List[ProcessedReading] = []
         
@@ -45,7 +43,6 @@ class JobScheduler:
             sample_interval = timedelta(seconds=settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS)
             end_time = datetime.now() + burst_duration
 
-            # İlerleme çubuğu ile veri toplama (burst mode)
             with tqdm(total=int(burst_duration.total_seconds()), desc="🔥 Veri Toplanıyor", bar_format="{l_bar}{bar}|", file=sys.stdout, leave=False) as pbar:
                 while datetime.now() < end_time:
                     start_loop_time = time.time()
@@ -59,7 +56,6 @@ class JobScheduler:
                     time.sleep(sleep_time)
                     pbar.update(int(sample_interval.total_seconds()))
 
-            # Toplanan verileri analiz et
             if not collected_readings:
                 logger.warning("Veri toplama patlaması sonucunda hiç veri elde edilemedi.")
                 self._print_summary(ProcessedReading(), status_icon="⚠️")
@@ -67,7 +63,6 @@ class JobScheduler:
 
             summary_reading = self.processor.analyze_burst_readings(collected_readings)
             
-            # Analiz edilen veriyi kaydet
             self.db_service.save_reading(summary_reading)
             self.csv_service.save_readings_to_csv([summary_reading])
             
@@ -77,18 +72,18 @@ class JobScheduler:
         except Exception:
             logger.critical("Veri toplama döngüsünde kritik bir hata oluştu!", exc_info=True)
             self.notification_service.send_error_notification("Kritik Döngü Hatası", traceback.format_exc())
-            self._print_summary(ProcessedReading(), status_icon="❌") # Hata durumunda boş özet bas
+            self._print_summary(ProcessedReading(), status_icon="❌")
 
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
-        """
-        Analiz sonucunu ve bir sonraki çalışma zamanını tek bir satırda yazdırır.
-        """
+        # ... (Bu fonksiyonun içi aynı kalıyor, değişiklik yok)
         now = datetime.now()
         next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
 
-        # Değerleri formatla, None ise N/A yaz
         h_str = f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
         w_str = f"{summary.weight_g:.0f} g" if summary.weight_g is not None else "N/A"
+        
+        # YENİ: Veri kaynağını göster
+        source_icon = "📡" if summary.temp_hum_source == "api" else "🔌"
         t_str = f"{summary.temperature_c:.1f}°C" if summary.temperature_c is not None else "N/A"
         hu_str = f"{summary.humidity_perc:.1f}%" if summary.humidity_perc is not None else "N/A"
 
@@ -96,12 +91,11 @@ class JobScheduler:
             f"[{now.strftime('%H:%M:%S')}] {status_icon} | "
             f"📏 {h_str.ljust(9)} | "
             f"⚖️ {w_str.ljust(9)} | "
-            f"🌡️ {t_str.ljust(7)} | "
+            f"{source_icon}🌡️ {t_str.ljust(7)} | "
             f"💧 {hu_str.ljust(6)} | "
             f"⏳ {next_run_time.strftime('%H:%M')}"
         )
         
-        # Önceki satırı temizlemek için boşluklarla doldur ve satır başına dön
         print(' ' * len(self.last_summary_line), file=sys.stdout, end='\r')
         self.last_summary_line = summary_line
         print(self.last_summary_line, file=sys.stdout, end='\r')
@@ -110,11 +104,19 @@ class JobScheduler:
         """Zamanlayıcıyı başlatır ve sonsuz döngüde çalıştırır."""
         logger.info("🚀 Meteoroloji İstasyonu Servisi Başlatılıyor...")
         self.sensor_manager.discover_and_connect()
+        
+        # YENİ: BAŞLANGIÇ KONTROLÜ
+        # Eğer I2C sensörü başlangıçta bulunamadıysa, OWM'den ilk veriyi zorla çek.
+        if not self.sensor_manager.is_temp_hum_connected:
+            logger.warning("I2C sensor not found on startup. Activating OWM fallback immediately.")
+            self.collector.owm_service.is_fallback_active = True
+            # `force_update=True` ile zaman kontrolü yapmadan ilk veriyi almasını sağla
+            self.collector.owm_service.update_cache(force_update=True)
+
         self.notification_service.send_startup_notification()
         self.setup_schedule()
         
         print("---")
-        # İlk döngüyü hemen başlatmak, sistemin çalıştığını görmek için iyidir.
         print("✨ Sistem aktif. Test için ilk döngü hemen başlatılıyor...")
         self.run_collection_cycle()
         print(f"\n✨ Normal zamanlama döngüsü bekleniyor. Sonraki çalışma yaklaşık {settings.DATA_COLLECTION_INTERVAL_MINUTES} dakika içinde.")
@@ -122,7 +124,7 @@ class JobScheduler:
         try:
             while True:
                 schedule.run_pending()
-                time.sleep(1) # CPU'yu yormamak için 1 saniye bekle
+                time.sleep(1)
         except KeyboardInterrupt:
             print("\n🛑 Program kullanıcı tarafından durduruldu.")
             logger.info("Program kullanıcı tarafından durduruldu.")
