@@ -13,7 +13,8 @@ class MeteorologyStation:
         self.display = RichDisplay()
         self.display.print_startup_banner()
         
-        with open(CONFIG_PATH, 'r') as f: self.config = yaml.safe_load(f)
+        with open(CONFIG_PATH, 'r') as f:
+            self.config = yaml.safe_load(f)
         
         self.system_status = {'sensors': {}, 'last_collection': {}, 'next_job': {}}
         self.sensor_manager = SensorManager(self.config)
@@ -22,22 +23,21 @@ class MeteorologyStation:
         self.scheduler = BlockingScheduler(timezone="Europe/Istanbul")
         
     def setup_jobs(self):
-        interval = self.config['scheduler']['data_collection_interval_minutes']
-        self.scheduler.add_job(self.run_collection_cycle, 'interval', minutes=interval, id='collect_job', name="Veri Toplama")
-        print(f"INFO: Veri toplama görevi her {interval} dakikada bir ayarlandı.")
+        self.interval = self.config['scheduler']['data_collection_interval_minutes']
+        self.scheduler.add_job(self.run_collection_cycle, 'interval', minutes=self.interval, id='collect_job', name="Veri Toplama")
+        print(f"INFO: Veri toplama görevi her {self.interval} dakikada bir ayarlandı.")
 
     def update_dashboard(self):
-        # Seri sensörler
         assigned = self.sensor_manager.get_assigned_ports()
         for name in ['distance', 'weight']:
             self.system_status['sensors'][name] = {'connected': name in assigned, 'detail': f"Port: {assigned.get(name, 'Bulunamadı')}"}
-        # I2C sensörü (durumu döngüde güncellenir, başlangıçta varsayım)
+        
         self.system_status['sensors']['temperature_humidity'] = self.system_status['sensors'].get('temperature_humidity', {'connected': False, 'detail': 'Test ediliyor...'})
         
-        # Sonraki görev
-        if jobs := self.scheduler.get_jobs():
-            next_job = min(jobs, key=lambda j: j.next_run_time)
-            self.system_status['next_job'] = {'name': next_job.name, 'time': next_job.next_run_time.strftime('%H:%M:%S')}
+        # --- KESİN ÇÖZÜM: 'next_run_time' özelliğini kullanmaktan vazgeç ---
+        # Bunun yerine görevin ne sıklıkla çalıştığını gösterelim.
+        self.system_status['next_job'] = {'name': 'Veri Toplama', 'time': f"Her {self.interval} dk'da bir"}
+        
         self.display.print_status_dashboard(self.system_status)
 
     def run_collection_cycle(self):
@@ -63,6 +63,8 @@ class MeteorologyStation:
         self.setup_jobs()
         self.update_dashboard()
         print("\n...CTRL+C ile çıkış yapabilirsiniz...")
+        # Başlangıçta bir kere çalıştır
+        self.run_collection_cycle()
         self.scheduler.start()
 
 if __name__ == "__main__":
@@ -70,4 +72,6 @@ if __name__ == "__main__":
         station = MeteorologyStation()
         station.start()
     except Exception as e:
+        import traceback
         print(f"\nCRITICAL: Sistem başlatılamadı! Hata: {e}")
+        traceback.print_exc()
