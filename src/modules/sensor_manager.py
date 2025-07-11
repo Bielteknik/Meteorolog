@@ -7,6 +7,7 @@ import yaml
 class SensorManager:
     """
     Sensörleri dinamik olarak keşfetmek, bağlamak ve yönetmekten sorumlu sınıf.
+    Bu sürüm, portları tek tek analiz ederek daha güvenilir bir keşif yapar.
     """
     def __init__(self, config_path):
         """
@@ -20,7 +21,8 @@ class SensorManager:
             print("INFO: Yapılandırma dosyası başarıyla yüklendi.")
         except FileNotFoundError:
             print(f"CRITICAL: Yapılandırma dosyası bulunamadı: {config_path}")
-            exit() # Program yapılandırma olmadan çalışamaz.
+            # Yapılandırma olmadan devam etmek imkansız.
+            raise SystemExit("Yapılandırma dosyası eksik, sistem durduruluyor.")
         
         self.sensor_definitions = self.config.get('sensors', {})
         self.serial_port_pattern = self.config.get('system', {}).get('serial_port_pattern', '/dev/ttyUSB*')
@@ -28,63 +30,87 @@ class SensorManager:
 
     def find_and_assign_sensors(self):
         """
-        Sistemdeki seri portları tarar, sensörleri tanımlayıcı desenlerine göre
-        keşfeder ve atamalarını yapar.
+        Sistemdeki seri portları tarar, HER BİR PORTU BİR KEZ OKUR ve hangi sensöre
+        ait olduğunu belirleyerek atama yapar.
         """
         print("\nINFO: Dinamik sensör keşfi başlatıldı...")
         print(f"INFO: Taranacak port deseni: {self.serial_port_pattern}")
 
         available_ports = glob.glob(self.serial_port_pattern)
         if not available_ports:
-            print("WARNING: Sistemde eşleşen hiçbir seri port bulunamadı.")
-            return False
-
+            print("WARNING: Sistemde '{self.serial_port_pattern}' deseniyle eşleşen hiçbir seri port bulunamadı.")
+            # Devam etmeden önce eksik sensörleri kontrol et
+        
         print(f"INFO: Bulunan potansiyel portlar: {available_ports}")
-        
-        unassigned_ports = list(available_ports)
-        found_sensors = {}
 
-        for name, definition in self.sensor_definitions.items():
-            if not definition.get('enabled', False) or 'identifier_pattern' not in definition:
-                continue
+        # Sensör adı ve regex desenini içeren bir sözlük oluşturalım
+        # Sadece 'enabled: true' olan ve seri port kullanan sensörleri dahil et
+        regex_map = {
+            name: re.compile(definition['identifier_pattern'])
+            for name, definition in self.sensor_definitions.items()
+            if definition.get('enabled', False) and 'identifier_pattern' in definition
+        }
 
-            print(f"INFO: '{name}' sensörü aranıyor...")
-            identifier_regex = re.compile(definition['identifier_pattern'])
-            baudrate = definition.get('baudrate', 9600)
-            sensor_found = False
-
-            for port in list(unassigned_ports): # Kopya üzerinde iterasyon
-                try:
-                    with serial.Serial(port, baudrate, timeout=2) as ser:
-                        # Portun kendine gelmesi için kısa bir bekleme
-                        time.sleep(2) 
-                        # Gelen ilk anlamlı veriyi yakalamak için birkaç satır oku
-                        line = ser.readline().decode('utf-8', errors='ignore').strip()
-                        print(f"  -> '{port}' portundan okunan veri: '{line}'")
-
-                        if identifier_regex.search(line):
-                            print(f"SUCCESS: '{name}' sensörü '{port}' portunda bulundu!")
-                            found_sensors[name] = port
-                            unassigned_ports.remove(port)
-                            sensor_found = True
-                            break # Bu sensörü bulduk, sonraki sensöre geç
-                except serial.SerialException as e:
-                    print(f"  -> WARNING: '{port}' portu açılamadı veya okunamadı: {e}")
-                except Exception as e:
-                    print(f"  -> ERROR: '{port}' portunda beklenmedik hata: {e}")
+        # Her bir portu tek tek ele alalım
+        for port in available_ports:
+            print(f"\nINFO: '{port}' portu analiz ediliyor...")
+            # Şimdilik baudrate sabit, gelecekte config'den alınabilir.
+            baudrate = 9600
             
-            if not sensor_found:
-                print(f"CRITICAL: '{name}' sensörü hiçbir portta bulunamadı!")
+            try:
+                with serial.Serial(port, baudrate, timeout=2) as ser:
+                    # Sensörün veri göndermeye başlaması için kritik bekleme
+                    time.sleep(2) 
+                    # Olası başlangıç gürültüsünü temizlemek için buffer'ı oku
+                    ser.reset_input_buffer()
+                    # Taze veri okumak için tekrar kısa bir bekleme
+                    time.sleep(0.5)
+                    
+                    line = ser.readline().decode('utf-8', errors='ignore').strip()
+                    print(f"  -> Okunan veri: '{line}'")
 
-        self.assigned_ports = found_sensors
+                    if not line:
+                        print(f"  -> WARNING: '{port}' portundan boş veri okundu. Atlanıyor.")
+                        continue
+
+                    # Okunan veri hangi sensörün deseniyle eşleşiyor?
+                    found_match = False
+                    for name, regex in regex_map.items():
+                        if regex.search(line):
+                            if name in self.assigned_ports:
+                                print(f"  -> CRITICAL: Çakışma! '{name}' sensörü zaten '{self.assigned_ports[name]}' portuna atanmış. '{port}' portu da aynı sensör verisini gönderiyor.")
+                            else:
+                                print(f"  -> SUCCESS: Bu veri '{name}' sensörüne ait. Atama yapılıyor.")
+                                self.assigned_ports[name] = port
+                                found_match = True
+                                # Eşleşme bulundu, bu port için başka desene bakmaya gerek yok.
+                                break 
+                    
+                    if not found_match:
+                        print(f"  -> WARNING: Okunan veri, tanımlı hiçbir sensör deseniyle eşleşmedi.")
+
+            except serial.SerialException as e:
+                print(f"  -> ERROR: '{port}' portu açılamadı veya okunamadı: {e}")
+            except Exception as e:
+                print(f"  -> ERROR: '{port}' portunda beklenmedik hata: {e}")
+
+        # ----- Sonuç Kontrolü -----
+        # Config'de aktif olan sensörlerin isimlerini al
+        enabled_sensor_names = {name for name, d in self.sensor_definitions.items() if d.get('enabled')}
         
-        # Sonuç kontrolü
-        enabled_sensor_count = sum(1 for d in self.sensor_definitions.values() if d.get('enabled'))
-        if len(self.assigned_ports) == enabled_sensor_count:
-            print("\nSUCCESS: Tüm aktif sensörler başarıyla atandı.")
+        # Bulunan (atanan) sensörlerin isimlerini al
+        found_sensor_names = set(self.assigned_ports.keys())
+
+        # I2C gibi seri port kullanmayanları şimdilik hesaptan çıkaralım
+        serial_enabled_names = {name for name, d in self.sensor_definitions.items() if d.get('enabled') and 'identifier_pattern' in d}
+        
+        if serial_enabled_names.issubset(found_sensor_names):
+            print("\nSUCCESS: Tüm aktif seri port sensörleri başarıyla atandı.")
             return True
         else:
-            print("\nERROR: Bazı sensörler bulunamadı. Lütfen bağlantıları kontrol edin.")
+            missing_sensors = serial_enabled_names - found_sensor_names
+            if missing_sensors:
+                print(f"\nERROR: Şu sensörler bulunamadı: {', '.join(missing_sensors)}. Lütfen bağlantıları kontrol edin.")
             return False
 
     def get_assigned_ports(self):
