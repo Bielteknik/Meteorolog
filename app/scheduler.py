@@ -29,8 +29,6 @@ class JobScheduler:
         self.processor = DataProcessor()
         self.db_service = DatabaseService()
         self.csv_service = CsvStorageService()
-        # --- DÜZELTME BURADA ---
-        # NotificationService'i doğrudan burada oluşturuyoruz.
         self.notification_service = NotificationService()
         self.remote_api = RemoteApiService()
 
@@ -41,8 +39,6 @@ class JobScheduler:
         self.last_api_post_status: str = "Not run yet"
         self.total_anomalies_detected: int = 0
     
-    # ... GERİ KALAN TÜM FONKSİYONLAR AYNI KALIYOR ...
-    # (setup_schedule, run_remote_post_job, run_collection_cycle, vb.)
     def setup_schedule(self):
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle)
@@ -56,7 +52,6 @@ class JobScheduler:
 
 
     def run_remote_post_job(self):
-        """Veritabanındaki en son veriyi alır ve uzak API'ye gönderir."""
         logger.info("Uzak API'ye veri gönderme görevi başlatılıyor...")
         self.last_api_post_time = datetime.now()
         try:
@@ -73,15 +68,10 @@ class JobScheduler:
             self.notification_service.send_error_notification("Uzak API'ye Veri Gönderme Hatası", traceback.format_exc())
 
     def run_collection_cycle(self):
-        """
-        Sensörleri açar, okuma yapar, işler, kaydeder ve sonra sensörleri kapatır.
-        """
         logger.info("Veri toplama döngüsü başlatılıyor...")
         self.last_collection_time = datetime.now()
         
-        # Hata olsa bile durumun 'Crashed' olarak ayarlanmasını sağlamak için döngüyü try bloğuna alalım
         try:
-            # 1. Bağlan ve Hazırla
             self.sensor_manager.discover_and_connect()
             self.sensor_manager.prepare_for_reading()
 
@@ -95,7 +85,6 @@ class JobScheduler:
                     logger.info("I2C sensor is back online. Disabling OWM fallback.")
                     self.collector.owm_service.is_fallback_active = False
 
-            # 2. Veri Topla
             collected_readings: List[ProcessedReading] = []
             burst_duration = timedelta(minutes=settings.DATA_BURST_DURATION_MINUTES)
             sample_interval = timedelta(seconds=settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS)
@@ -118,7 +107,6 @@ class JobScheduler:
             
             print()
 
-            # 3. İşle ve Kaydet
             if not collected_readings:
                 logger.warning("Veri toplama patlaması sonucunda hiç veri elde edilemedi.")
                 self._print_summary(ProcessedReading(), status_icon="⚠️")
@@ -145,8 +133,6 @@ class JobScheduler:
             self.console.print("[dim]Sensörler bir sonraki döngüye kadar kapatıldı.[/dim]")
     
     def print_system_status(self):
-        """Anlık sistem durumunu konsola güzel bir tablo ile yazdırır."""
-        # Bu metodda değişiklik yok, aynı kalıyor
         table = Table(title=f"📊 Sistem Durum Kontrolü ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')}) 📊", style="cyan", title_style="bold magenta")
         table.add_column("Öğe", style="bold green", no_wrap=True)
         table.add_column("Durum", style="bold")
@@ -180,9 +166,15 @@ class JobScheduler:
         
         table.add_section()
         
-        next_coll_run = schedule.next_run.strftime('%H:%M:%S') if schedule.next_run else "N/A"
-        job_details = ", ".join(sorted(list(set([job.job_func.__name__ for job in schedule.jobs]))))
-        table.add_row("⏳ Sonraki Görevler", next_coll_run, job_details)
+        # --- HATA 2 İÇİN DÜZELTME: schedule kullanımı güncellendi ---
+        if schedule.jobs:
+             next_run_time_obj = schedule.next_run
+             next_run_str = next_run_time_obj.strftime('%H:%M:%S') if next_run_time_obj else "N/A"
+             job_details = ", ".join(sorted(list(set([job.job_func.__name__ for job in schedule.jobs]))))
+             table.add_row("⏳ Sonraki Görevler", next_run_str, job_details)
+        else:
+             table.add_row("⏳ Sonraki Görevler", "N/A", "Hiç görev planlanmamış.")
+
 
         table.add_section()
         
@@ -193,17 +185,16 @@ class JobScheduler:
         self.console.print(table)
         
     def log_system_status(self):
-        # Bu metodda değişiklik yok, aynı kalıyor
         logger.info("--- SYSTEM HEALTH CHECK ---")
         logger.info(f"Last collection status: {self.last_collection_status} at {self.last_collection_time}")
         logger.info(f"Last API post status: {self.last_api_post_status} at {self.last_api_post_time}")
         logger.info(f"Total anomalies since start: {self.total_anomalies_detected}")
-        next_run_time = schedule.next_run.strftime('%Y-%m-%d %H:%M:%S') if schedule.next_run else 'N/A'
-        logger.info(f"Next scheduled job at: {next_run_time}")
+        if schedule.jobs:
+            next_run_time = schedule.next_run.strftime('%Y-%m-%d %H:%M:%S') if schedule.next_run else 'N/A'
+            logger.info(f"Next scheduled job at: {next_run_time}")
         logger.info("--- END HEALTH CHECK ---")
 
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
-        # Bu metodda değişiklik yok, aynı kalıyor
         now = datetime.now()
         next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
         h_str = f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
@@ -225,7 +216,6 @@ class JobScheduler:
     def run_forever(self):
         logger.info("Meteoroloji İstasyonu Servisi Başlatılıyor...")
         self.setup_schedule()
-        # Bildirimi setup'tan sonra gönderelim ki loglama düzgün çalışsın
         self.notification_service.send_startup_notification()
         
         self.console.print("\n[bold green]✨ Sistem aktif. İlk döngü hemen başlatılıyor...[/bold green]")
