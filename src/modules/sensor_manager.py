@@ -5,20 +5,19 @@ import re
 import yaml
 
 class SensorManager:
-    def __init__(self, config_path):
+    def __init__(self, config):
+        """
+        Args:
+            config (dict): Önceden yüklenmiş yapılandırma sözlüğü.
+        """
         print("INFO: SensorManager başlatılıyor...")
-        try:
-            with open(config_path, 'r') as f:
-                self.config = yaml.safe_load(f)
-            print("INFO: Yapılandırma dosyası başarıyla yüklendi.")
-        except FileNotFoundError:
-            print(f"CRITICAL: Yapılandırma dosyası bulunamadı: {config_path}")
-            raise SystemExit("Yapılandırma dosyası eksik, sistem durduruluyor.")
+        # Artık dosyayı burada açmıyoruz, hazır config'i alıyoruz.
+        self.config = config
         
         self.sensor_definitions = self.config.get('sensors', {})
         self.serial_port_pattern = self.config.get('system', {}).get('serial_port_pattern', '/dev/ttyUSB*')
         self.assigned_ports = {}
-        self.active_connections = {} # Aktif seri port bağlantılarını tutacak
+        self.active_connections = {}
 
     def find_and_assign_sensors(self):
         # Bu fonksiyon bir önceki adımdaki ile aynı, değişmedi.
