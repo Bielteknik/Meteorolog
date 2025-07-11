@@ -30,7 +30,7 @@ openweathermap:
   # HASSAS BİLGİ: API anahtarınızı buraya doğrudan yazmayın.
   # Program, çevre değişkenlerinden (environment variable) okuyacak.
   # Terminalde: export OWM_API_KEY=" sizin_api_keyiniz"
-  api_key_env_var: "e1c89ccd58676fadc881aaf7f7402dd5"
+  api_key_env_var: "OWM_API_KEY"
   # Konum belirlemek için birini seçin (lat/lon önceliklidir)
   lat: 39.909  # Örnek: New York
   lon: -41.277 # Örnek: New York
