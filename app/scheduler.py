@@ -25,20 +25,20 @@ class JobScheduler:
     def __init__(self):
         self.console = Console()
         self.sensor_manager = SensorManager()
-        self.collector = DataCollector(self.sensor_manager)
-        self.processor = DataProcessor()
         self.db_service = DatabaseService()
+        self.processor = DataProcessor(self.db_service)
+        self.collector = DataCollector(self.sensor_manager)
         self.csv_service = CsvStorageService()
         self.notification_service = NotificationService()
         self.remote_api = RemoteApiService()
 
-        # --- Durum İzleme Değişkenleri ---
+        # Durum İzleme Değişkenleri
         self.last_collection_time: Optional[datetime] = None
         self.last_collection_status: str = "Not run yet"
         self.last_api_post_time: Optional[datetime] = None
         self.last_api_post_status: str = "Not run yet"
-        self.total_anomalies_detected: int = 0
-    
+        self.last_daily_report_time: Optional[datetime] = None
+
     def setup_schedule(self):
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle)
@@ -47,8 +47,30 @@ class JobScheduler:
         schedule.every().hour.at(":01").do(self.run_remote_post_job)
         logger.info("Uzak API'ye veri gönderme görevi her saatin 1. dakikasında çalışacak şekilde ayarlandı.")
         
-        schedule.every(6).hours.do(self.log_system_status)
-        logger.info("Periyodik sistem durumu kontrolü 6 saatte bir çalışacak şekilde ayarlandı.")
+        schedule.every().day.at("00:05").do(self.run_daily_report_job)
+        logger.info("Günlük anomali raporu görevi her gün 00:05'te çalışacak şekilde ayarlandı.")
+
+    def run_daily_report_job(self):
+        """Son 24 saatteki anomali verilerini özetleyen bir rapor oluşturur."""
+        logger.info("Günlük anomali raporu oluşturuluyor...")
+        self.last_daily_report_time = datetime.now()
+        try:
+            start_of_report_period = self.last_daily_report_time - timedelta(days=1)
+            total_anomalies = self.db_service.count_anomalies_since(start_of_report_period)
+
+            report_title = "Günlük Sistem Sağlık ve Anomali Raporu"
+            report_details = (
+                f"Rapor Dönemi: {start_of_report_period.strftime('%Y-%m-%d %H:%M')} - {self.last_daily_report_time.strftime('%Y-%m-%d %H:%M')}\n\n"
+                f"Bu dönemde tespit edilen toplam anomali sayısı: {total_anomalies}"
+            )
+            
+            logger.info(f"--- {report_title} ---")
+            logger.info(report_details)
+            logger.info("--- RAPOR SONU ---")
+
+            self.notification_service.send_error_notification(report_title, report_details)
+        except Exception as e:
+            logger.error(f"Günlük rapor oluşturma görevinde hata: {e}", exc_info=True)
 
 
     def run_remote_post_job(self):
@@ -70,7 +92,6 @@ class JobScheduler:
     def run_collection_cycle(self):
         logger.info("Veri toplama döngüsü başlatılıyor...")
         self.last_collection_time = datetime.now()
-        
         try:
             self.sensor_manager.discover_and_connect()
             self.sensor_manager.prepare_for_reading()
@@ -95,10 +116,6 @@ class JobScheduler:
                     start_loop_time = time.time()
                     raw_data = self.collector.collect_raw_data()
                     processed_data = self.processor.process_raw_data(raw_data)
-                    
-                    if any("ANOMALY" in status for status in [processed_data.height_status, processed_data.weight_status, processed_data.temperature_status, processed_data.humidity_status]):
-                        self.total_anomalies_detected += 1
-
                     collected_readings.append(processed_data)
                     loop_duration = time.time() - start_loop_time
                     sleep_time = max(0, sample_interval.total_seconds() - loop_duration)
@@ -118,7 +135,7 @@ class JobScheduler:
             self.csv_service.save_readings_to_csv([summary_reading])
             
             self._print_summary(summary_reading, status_icon="✅")
-            logger.info(f"Döngü başarıyla tamamlandı.")
+            logger.info("Döngü başarıyla tamamlandı.")
             self.last_collection_status = "Success"
 
         except Exception:
@@ -164,11 +181,13 @@ class JobScheduler:
         time_text = self.last_api_post_time.strftime('%H:%M:%S') if self.last_api_post_time else "N/A"
         table.add_row("🛰️ Son API Gönderimi", status_text, f"Zaman: {time_text}")
         
+        report_time_str = self.last_daily_report_time.strftime('%Y-%m-%d %H:%M') if self.last_daily_report_time else "Henüz oluşturulmadı"
+        table.add_row("📜 Son Günlük Rapor", report_time_str, "")
+
         table.add_section()
         
         if schedule.idle_seconds is not None:
             try:
-                # Bir sonraki görevin ne zaman çalışacağını saniye cinsinden alıp formatlayalım
                 next_run_in_seconds = schedule.idle_seconds
                 next_run_time_obj = datetime.now() + timedelta(seconds=next_run_in_seconds)
                 next_run_str = next_run_time_obj.strftime('%H:%M:%S')
@@ -179,24 +198,11 @@ class JobScheduler:
         else:
              table.add_row("⏳ Sonraki Görevler", "N/A", "Hiç görev planlanmamış.")
 
-
-        table.add_section()
-        
-        anomaly_color = "yellow" if self.total_anomalies_detected > 0 else "green"
-        anomaly_text = f"[{anomaly_color}]{self.total_anomalies_detected} adet tespit edildi[/]"
-        table.add_row("⚠️ Anomali Sayacı", anomaly_text, "Program başlangıcından beri.")
-
         self.console.print(table)
         
     def log_system_status(self):
-        logger.info("--- SYSTEM HEALTH CHECK ---")
-        logger.info(f"Last collection status: {self.last_collection_status} at {self.last_collection_time}")
-        logger.info(f"Last API post status: {self.last_api_post_status} at {self.last_api_post_time}")
-        logger.info(f"Total anomalies since start: {self.total_anomalies_detected}")
-        if schedule.idle_seconds is not None:
-            next_run_time = datetime.now() + timedelta(seconds=schedule.idle_seconds)
-            logger.info(f"Next scheduled job at: {next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("--- END HEALTH CHECK ---")
+        # Bu metodun içeriği aynı kalabilir, rapor fonksiyonu zaten loglama yapıyor.
+        pass
 
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
         now = datetime.now()

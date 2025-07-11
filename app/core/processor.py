@@ -9,16 +9,14 @@ from app.sensors.parsers import (
     parse_temp_hum_from_raw
 )
 from app.services.anomaly_service import AnomalyService
-from app.services.notification import NotificationService
 
 logger = logging.getLogger(__name__)
 
 class DataProcessor:
-    """Ham sensör verilerini işler, doğrular, ek hesaplamalar yapar ve anomali tespiti yapar."""
+    """Ham sensör verilerini işler, doğrular, ek hesaplamalar yapar ve anomali tespiti için servisi tetikler."""
 
-    def __init__(self):
-        self.anomaly_service = AnomalyService()
-        self.notification_service = NotificationService()
+    def __init__(self, db_service):
+        self.anomaly_service = AnomalyService(db_service)
 
     def _validate_value(self, value: float | None, metric_name: str) -> Tuple[float | None, str]:
         if value is None:
@@ -68,16 +66,8 @@ class DataProcessor:
             temp_hum_source=source
         )
         
-        anomaly_statuses, alerts = self.anomaly_service.check_for_anomalies(processed_reading)
-        
-        if anomaly_statuses:
-            logger.info(f"Anomalies found, updating statuses: {anomaly_statuses}")
-            for status_key, status_value in anomaly_statuses.items():
-                setattr(processed_reading, status_key, status_value)
-        
-        if alerts:
-            error_details = "\n".join(alerts)
-            self.notification_service.send_error_notification("Anomaly Detected", error_details)
+        # Anomali kontrolünü tetikle. Servis, loglama ve kaydı kendisi yapacak.
+        self.anomaly_service.check_for_anomalies(processed_reading)
 
         return processed_reading
 

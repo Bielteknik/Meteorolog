@@ -14,7 +14,7 @@ class DatabaseService:
     def __init__(self):
         self.db_path = settings.DATABASE_FILE_PATH
         self._ensure_db_directory()
-        self._create_table_if_not_exists()
+        self._create_tables_if_not_exists()
 
     def _ensure_db_directory(self):
         """Veritabanı dosyasının bulunacağı 'data' dizininin var olduğundan emin olur."""
@@ -28,11 +28,13 @@ class DatabaseService:
             logger.critical(f"FATAL: Could not connect to database at {self.db_path}: {e}")
             raise
 
-    def _create_table_if_not_exists(self):
-        """'readings' tablosunu, eğer mevcut değilse, oluşturur."""
+    def _create_tables_if_not_exists(self):
+        """Gerekli tüm tabloları (readings, anomalies) oluşturur."""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
+            
+            # Okumalar Tablosu
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS readings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,11 +52,23 @@ class DatabaseService:
                 temp_hum_source TEXT 
             )
             ''')
+            
+            # Yeni Anomali Tablosu
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS anomalies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                metric TEXT NOT NULL,
+                anomaly_type TEXT NOT NULL,
+                details TEXT
+            )
+            ''')
+
             conn.commit()
             conn.close()
-            logger.info(f"Database table 'readings' is ready at {self.db_path}")
+            logger.info(f"Database tables are ready at {self.db_path}")
         except sqlite3.Error as e:
-            logger.error(f"Failed to create 'readings' table: {e}")
+            logger.error(f"Failed to create tables: {e}")
 
     def save_reading(self, reading: ProcessedReading):
         """Tek bir işlenmiş okumayı (ProcessedReading) veritabanına kaydeder."""
@@ -89,6 +103,34 @@ class DatabaseService:
             logger.debug(f"Successfully saved a reading to the database with timestamp {reading.timestamp}.")
         except sqlite3.Error as e:
             logger.error(f"Failed to save reading to database: {e}")
+
+    def save_anomaly(self, metric: str, anomaly_type: str, details: str):
+        """Tespit edilen bir anomaliyi veritabanına kaydeder."""
+        sql = "INSERT INTO anomalies (timestamp, metric, anomaly_type, details) VALUES (?, ?, ?, ?)"
+        data_tuple = (datetime.now().isoformat(), metric, anomaly_type, details)
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(sql, data_tuple)
+            conn.commit()
+            conn.close()
+            logger.warning(f"Anomaly saved to DB: {metric} - {anomaly_type}")
+        except sqlite3.Error as e:
+            logger.error(f"Failed to save anomaly to database: {e}")
+
+    def count_anomalies_since(self, start_time: datetime) -> int:
+        """Belirtilen zamandan bu yana kaydedilen anomali sayısını döndürür."""
+        sql = "SELECT COUNT(*) FROM anomalies WHERE timestamp >= ?"
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(sql, (start_time.isoformat(),))
+            count_result = cursor.fetchone()
+            conn.close()
+            return count_result[0] if count_result else 0
+        except sqlite3.Error as e:
+            logger.error(f"Failed to count anomalies: {e}")
+            return -1
 
     def get_latest_reading(self) -> Optional[ProcessedReading]:
         """Veritabanındaki en son kaydı bir ProcessedReading nesnesi olarak döndürür."""
