@@ -166,12 +166,16 @@ class JobScheduler:
         
         table.add_section()
         
-        # --- HATA 2 İÇİN DÜZELTME: schedule kullanımı güncellendi ---
-        if schedule.jobs:
-             next_run_time_obj = schedule.next_run
-             next_run_str = next_run_time_obj.strftime('%H:%M:%S') if next_run_time_obj else "N/A"
-             job_details = ", ".join(sorted(list(set([job.job_func.__name__ for job in schedule.jobs]))))
-             table.add_row("⏳ Sonraki Görevler", next_run_str, job_details)
+        if schedule.idle_seconds is not None:
+            try:
+                # Bir sonraki görevin ne zaman çalışacağını saniye cinsinden alıp formatlayalım
+                next_run_in_seconds = schedule.idle_seconds
+                next_run_time_obj = datetime.now() + timedelta(seconds=next_run_in_seconds)
+                next_run_str = next_run_time_obj.strftime('%H:%M:%S')
+                job_details = ", ".join(sorted(list(set([job.job_func.__name__ for job in schedule.jobs]))))
+                table.add_row("⏳ Sonraki Görevler", next_run_str, job_details)
+            except Exception:
+                 table.add_row("⏳ Sonraki Görevler", "Hesaplanamadı", "")
         else:
              table.add_row("⏳ Sonraki Görevler", "N/A", "Hiç görev planlanmamış.")
 
@@ -189,9 +193,9 @@ class JobScheduler:
         logger.info(f"Last collection status: {self.last_collection_status} at {self.last_collection_time}")
         logger.info(f"Last API post status: {self.last_api_post_status} at {self.last_api_post_time}")
         logger.info(f"Total anomalies since start: {self.total_anomalies_detected}")
-        if schedule.jobs:
-            next_run_time = schedule.next_run.strftime('%Y-%m-%d %H:%M:%S') if schedule.next_run else 'N/A'
-            logger.info(f"Next scheduled job at: {next_run_time}")
+        if schedule.idle_seconds is not None:
+            next_run_time = datetime.now() + timedelta(seconds=schedule.idle_seconds)
+            logger.info(f"Next scheduled job at: {next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info("--- END HEALTH CHECK ---")
 
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
