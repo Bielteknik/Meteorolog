@@ -3,16 +3,23 @@ system:
   serial_port_pattern: "/dev/ttyUSB*"
 
 sensors:
+  temperature_humidity:
+    enabled: true
+    type: "SHT3X"
+    i2c_bus: 1
+    i2c_address: 0x44
+
   distance:
     enabled: true
-    # TEK TIRNAK KULLANILDI: '\d' artık bir hata vermeyecek.
     identifier_pattern: '^R\d{4}'
     baudrate: 9600
     mount_height_mm: 3700
     
   weight:
     enabled: true
-    # TEK TIRNAK KULLANILDI: '\s' artık bir hata vermeyecek.
     identifier_pattern: '^\s*='
     baudrate: 9600
-    measurement_area_m2: 1
+    measurement_area_m2: 0.25
+
+scheduler:
+  data_collection_interval_minutes: 1
