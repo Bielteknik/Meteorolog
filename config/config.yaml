@@ -23,3 +23,18 @@ sensors:
 
 scheduler:
   data_collection_interval_minutes: 1
+
+# YENİ BÖLÜM
+openweathermap:
+  enabled: true
+  # HASSAS BİLGİ: API anahtarınızı buraya doğrudan yazmayın.
+  # Program, çevre değişkenlerinden (environment variable) okuyacak.
+  # Terminalde: export OWM_API_KEY=" sizin_api_keyiniz"
+  api_key_env_var: "e1c89ccd58676fadc881aaf7f7402dd5"
+  # Konum belirlemek için birini seçin (lat/lon önceliklidir)
+  lat: 39.909  # Örnek: New York
+  lon: -41.277 # Örnek: New York
+  # VEYA
+  city_id: 315368 # Örnek: New York City ID
+  units: "metric" # Sıcaklığı Celsius olarak almak için
+  cache_update_interval_hours: 2 # API'yi ne sıklıkla güncelleyeceğimiz
