@@ -29,16 +29,20 @@ class JobScheduler:
         self.processor = DataProcessor()
         self.db_service = DatabaseService()
         self.csv_service = CsvStorageService()
-        self.notification_service = self.processor.notification_service
+        # --- DÜZELTME BURADA ---
+        # NotificationService'i doğrudan burada oluşturuyoruz.
+        self.notification_service = NotificationService()
         self.remote_api = RemoteApiService()
 
-        # --- YENİ: Durum İzleme Değişkenleri ---
+        # --- Durum İzleme Değişkenleri ---
         self.last_collection_time: Optional[datetime] = None
         self.last_collection_status: str = "Not run yet"
         self.last_api_post_time: Optional[datetime] = None
         self.last_api_post_status: str = "Not run yet"
         self.total_anomalies_detected: int = 0
-
+    
+    # ... GERİ KALAN TÜM FONKSİYONLAR AYNI KALIYOR ...
+    # (setup_schedule, run_remote_post_job, run_collection_cycle, vb.)
     def setup_schedule(self):
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle)
@@ -47,8 +51,6 @@ class JobScheduler:
         schedule.every().hour.at(":01").do(self.run_remote_post_job)
         logger.info("Uzak API'ye veri gönderme görevi her saatin 1. dakikasında çalışacak şekilde ayarlandı.")
         
-        # --- YENİ: Periyodik Durum Kontrolü ---
-        # Her 6 saatte bir detaylı durum raporunu log dosyasına yazar.
         schedule.every(6).hours.do(self.log_system_status)
         logger.info("Periyodik sistem durumu kontrolü 6 saatte bir çalışacak şekilde ayarlandı.")
 
@@ -76,6 +78,8 @@ class JobScheduler:
         """
         logger.info("Veri toplama döngüsü başlatılıyor...")
         self.last_collection_time = datetime.now()
+        
+        # Hata olsa bile durumun 'Crashed' olarak ayarlanmasını sağlamak için döngüyü try bloğuna alalım
         try:
             # 1. Bağlan ve Hazırla
             self.sensor_manager.discover_and_connect()
@@ -87,7 +91,9 @@ class JobScheduler:
                     self.collector.owm_service.is_fallback_active = True
                     self.collector.owm_service.update_cache(force_update=True)
             else:
-                 self.collector.owm_service.is_fallback_active = False
+                 if self.collector.owm_service.is_fallback_active:
+                    logger.info("I2C sensor is back online. Disabling OWM fallback.")
+                    self.collector.owm_service.is_fallback_active = False
 
             # 2. Veri Topla
             collected_readings: List[ProcessedReading] = []
@@ -101,7 +107,6 @@ class JobScheduler:
                     raw_data = self.collector.collect_raw_data()
                     processed_data = self.processor.process_raw_data(raw_data)
                     
-                    # Anomali sayacını güncelle
                     if any("ANOMALY" in status for status in [processed_data.height_status, processed_data.weight_status, processed_data.temperature_status, processed_data.humidity_status]):
                         self.total_anomalies_detected += 1
 
@@ -129,24 +134,24 @@ class JobScheduler:
             self.last_collection_status = "Success"
 
         except Exception:
+            self.last_collection_status = "Crashed"
             logger.critical("Veri toplama döngüsünde kritik bir hata oluştu!", exc_info=True)
             self.notification_service.send_error_notification("Kritik Döngü Hatası", traceback.format_exc())
             print()
             self._print_summary(ProcessedReading(), status_icon="❌")
-            self.last_collection_status = "Crashed"
         
         finally:
             self.sensor_manager.disconnect_all()
             self.console.print("[dim]Sensörler bir sonraki döngüye kadar kapatıldı.[/dim]")
-
+    
     def print_system_status(self):
         """Anlık sistem durumunu konsola güzel bir tablo ile yazdırır."""
+        # Bu metodda değişiklik yok, aynı kalıyor
         table = Table(title=f"📊 Sistem Durum Kontrolü ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')}) 📊", style="cyan", title_style="bold magenta")
         table.add_column("Öğe", style="bold green", no_wrap=True)
         table.add_column("Durum", style="bold")
         table.add_column("Detay", style="cyan")
 
-        # Sensör Durumları
         h_status = "[bold green]BAĞLI[/]" if self.sensor_manager.is_height_connected else "[bold yellow]BAĞLI DEĞİL[/]"
         h_detail = self.sensor_manager.height_port or "Port bulunamadı."
         table.add_row("📏 Yükseklik Sensörü", h_status, h_detail)
@@ -163,27 +168,24 @@ class JobScheduler:
 
         table.add_section()
 
-        # Görev Durumları
-        status_color = "green" if self.last_collection_status == "Success" else "red"
+        status_color = {"Success": "green", "Crashed": "red", "Failed": "red", "Failed (No Data)": "yellow"}.get(self.last_collection_status, "white")
         status_text = f"[{status_color}]{self.last_collection_status}[/]"
         time_text = self.last_collection_time.strftime('%H:%M:%S') if self.last_collection_time else "N/A"
         table.add_row("🔄 Son Veri Toplama", status_text, f"Zaman: {time_text}")
         
-        status_color = "green" if self.last_api_post_status == "Success" else "red"
+        status_color = {"Success": "green", "Crashed": "red", "Failed": "red"}.get(self.last_api_post_status, "white")
         status_text = f"[{status_color}]{self.last_api_post_status}[/]"
         time_text = self.last_api_post_time.strftime('%H:%M:%S') if self.last_api_post_time else "N/A"
         table.add_row("🛰️ Son API Gönderimi", status_text, f"Zaman: {time_text}")
         
         table.add_section()
         
-        # Gelecek Görevler
         next_coll_run = schedule.next_run.strftime('%H:%M:%S') if schedule.next_run else "N/A"
-        job_details = ", ".join([job.job_func.__name__ for job in schedule.jobs])
-        table.add_row("⏳ Sonraki Görev", next_coll_run, job_details)
+        job_details = ", ".join(sorted(list(set([job.job_func.__name__ for job in schedule.jobs]))))
+        table.add_row("⏳ Sonraki Görevler", next_coll_run, job_details)
 
         table.add_section()
         
-        # Anomali Özeti
         anomaly_color = "yellow" if self.total_anomalies_detected > 0 else "green"
         anomaly_text = f"[{anomaly_color}]{self.total_anomalies_detected} adet tespit edildi[/]"
         table.add_row("⚠️ Anomali Sayacı", anomaly_text, "Program başlangıcından beri.")
@@ -191,8 +193,7 @@ class JobScheduler:
         self.console.print(table)
         
     def log_system_status(self):
-        """print_system_status çıktısını log dosyasına yazar."""
-        # Rich tablosunu metne çevirmek karmaşık olduğu için basit bir loglama yapıyoruz.
+        # Bu metodda değişiklik yok, aynı kalıyor
         logger.info("--- SYSTEM HEALTH CHECK ---")
         logger.info(f"Last collection status: {self.last_collection_status} at {self.last_collection_time}")
         logger.info(f"Last API post status: {self.last_api_post_status} at {self.last_api_post_time}")
@@ -202,25 +203,36 @@ class JobScheduler:
         logger.info("--- END HEALTH CHECK ---")
 
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
-        # ... Bu metodda değişiklik yok ...
-        # ...
-        pass # Kısaltmak için geçildi, orijinal hali aynı kalacak
+        # Bu metodda değişiklik yok, aynı kalıyor
+        now = datetime.now()
+        next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
+        h_str = f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
+        w_str = f"{summary.weight_g:.0f} g" if summary.weight_g is not None else "N/A"
+        source_icon = "📡" if summary.temp_hum_source == "api" else "🔌"
+        t_str = f"{summary.temperature_c:.1f}°C" if summary.temperature_c is not None else "N/A"
+        hu_str = f"{summary.humidity_perc:.1f}%" if summary.humidity_perc is not None else "N/A"
+        
+        summary_line = (
+            f"[white on black][{now.strftime('%H:%M:%S')}][/white on black] {status_icon} | "
+            f"📏 [bold cyan]{h_str.ljust(9)}[/bold cyan] | "
+            f"⚖️  [bold green]{w_str.ljust(8)}[/bold green] | "
+            f"{source_icon}🌡️ [bold yellow]{t_str.ljust(7)}[/bold yellow] | "
+            f"💧 [bold blue]{hu_str.ljust(6)}[/bold blue] | "
+            f"⏳ [dim]{next_run_time.strftime('%H:%M')}[/dim]"
+        )
+        self.console.print(summary_line)
 
     def run_forever(self):
         logger.info("Meteoroloji İstasyonu Servisi Başlatılıyor...")
-        self.notification_service.send_startup_notification()
         self.setup_schedule()
-        
-        # Başlangıçta anlık bir durum kontrolü yapalım
-        self.console.print("\n[bold]🚀 Başlangıç Durum Kontrolü 🚀[/bold]")
-        # Başlangıçta sensörler bağlı olmadığı için önce bir döngü çalışmalı
-        # self.print_system_status() 
+        # Bildirimi setup'tan sonra gönderelim ki loglama düzgün çalışsın
+        self.notification_service.send_startup_notification()
         
         self.console.print("\n[bold green]✨ Sistem aktif. İlk döngü hemen başlatılıyor...[/bold green]")
         self.run_collection_cycle()
         
         self.console.print("\n[bold]📊 Döngü Sonrası Durum Kontrolü 📊[/bold]")
-        self.print_system_status() # İlk döngüden sonra durumu gösterelim
+        self.print_system_status()
 
         self.console.print(f"\n[bold green]✨ Normal zamanlama döngüsü bekleniyor...[/bold green]")
         
