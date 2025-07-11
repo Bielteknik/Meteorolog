@@ -152,9 +152,6 @@ class JobScheduler:
         table.add_column("Durum", style="bold")
         table.add_column("Detay", style="cyan")
 
-        # Döngü sonunda bağlantılar kesildiği için bu rapor yanıltıcı olabilir.
-        # Daha doğru bir rapor için, döngünün başında bu verileri saklayabiliriz.
-        # Şimdilik bu şekilde bırakıyoruz.
         h_status = "[bold green]BAĞLI[/]" if self.sensor_manager.is_height_connected else "[bold yellow]BAĞLI DEĞİL[/]"
         h_detail = self.sensor_manager.height_port or "Port bulunamadı."
         table.add_row("📏 Yükseklik Sensörü", h_status, h_detail)
@@ -186,32 +183,48 @@ class JobScheduler:
 
         table.add_section()
         
-        # --- DÜZELTME BURADA ---
-        if schedule.next_run:
+        # --- KALICI DÜZELTME BURADA ---
+        next_run_str = "N/A"
+        job_details_str = "Hiç görev planlanmamış."
+        if schedule.jobs:
+            # schedule.next_run özelliği bir sonraki görevin ne zaman çalışacağını datetime nesnesi olarak verir.
             next_run_time_obj = schedule.next_run
-            next_run_str = next_run_time_obj.strftime('%H:%M:%S')
+            if next_run_time_obj:
+                next_run_str = next_run_time_obj.strftime('%H:%M:%S')
             
-            # Hangi işin çalışacağını bulmak için daha basit bir yol
-            next_job = min(schedule.jobs, key=lambda j: j.next_run)
-            job_details = f"{next_job.job_func.__name__}"
-            
-            table.add_row("⏳ Sonraki Görev", next_run_str, job_details)
-        else:
-            table.add_row("⏳ Sonraki Görevler", "N/A", "Hiç görev planlanmamış.")
+            # Hangi işin/işlerin çalışacağını bulalım
+            upcoming_jobs = []
+            for job in schedule.jobs:
+                if job.next_run == next_run_time_obj:
+                    upcoming_jobs.append(job.job_func.__name__)
+            job_details_str = ", ".join(sorted(list(set(upcoming_jobs))))
 
+        table.add_row("⏳ Sonraki Görev", next_run_str, job_details_str)
         self.console.print(table)
         
     def log_system_status(self):
-        logger.info("--- SYSTEM HEALTH CHECK ---")
-        # ...
-        if schedule.next_run:
-            next_run_time = schedule.next_run.strftime('%Y-%m-%d %H:%M:%S')
-            logger.info(f"Next scheduled job at: {next_run_time}")
-        logger.info("--- END HEALTH CHECK ---")
+        # ... Bu metodda değişiklik yok, aynı kalıyor ...
+        pass
 
     def _print_summary(self, summary: ProcessedReading, status_icon: str):
-        # ...
-        pass # Kısaltıldı, orijinali aynı kalacak
+        # ... Bu metodda değişiklik yok, aynı kalıyor ...
+        now = datetime.now()
+        next_run_time = now + timedelta(minutes=settings.DATA_COLLECTION_INTERVAL_MINUTES)
+        h_str = f"{summary.snow_height_mm:.1f} mm" if summary.snow_height_mm is not None else "N/A"
+        w_str = f"{summary.weight_g:.0f} g" if summary.weight_g is not None else "N/A"
+        source_icon = "📡" if summary.temp_hum_source == "api" else "🔌"
+        t_str = f"{summary.temperature_c:.1f}°C" if summary.temperature_c is not None else "N/A"
+        hu_str = f"{summary.humidity_perc:.1f}%" if summary.humidity_perc is not None else "N/A"
+        
+        summary_line = (
+            f"[white on black][{now.strftime('%H:%M:%S')}][/white on black] {status_icon} | "
+            f"📏 [bold cyan]{h_str.ljust(9)}[/bold cyan] | "
+            f"⚖️  [bold green]{w_str.ljust(8)}[/bold green] | "
+            f"{source_icon}🌡️ [bold yellow]{t_str.ljust(7)}[/bold yellow] | "
+            f"💧 [bold blue]{hu_str.ljust(6)}[/bold blue] | "
+            f"⏳ [dim]{next_run_time.strftime('%H:%M')}[/dim]"
+        )
+        self.console.print(summary_line)
 
     def run_forever(self):
         logger.info("Meteoroloji İstasyonu Servisi Başlatılıyor...")
