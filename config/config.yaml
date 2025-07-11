@@ -1,0 +1,27 @@
+system:
+  station_id: "EJDER3200-ISTASYON-01"
+  # Sistem genelinde kullanılacak USB portlarını taramak için desen
+  # Gerçek Raspberry Pi'de bu '/dev/ttyUSB*' olabilir.
+  # Test ortamları için '/dev/tty.usbserial-*' gibi değiştirilebilir.
+  serial_port_pattern: "/dev/ttyUSB*"
+
+sensors:
+  distance:
+    enabled: true
+    # Verinin 'R' ile başlayıp ardından 4 rakam geldiğini belirten Regex deseni
+    identifier_pattern: "^R\d{4}"
+    baudrate: 9600
+    # Kar yüksekliği hesabı için kritik parametre
+    mount_height_mm: 3700
+    
+  weight:
+    enabled: true
+    # Verinin başında boşluklar olabileceğini, ardından '=' geldiğini belirten Regex deseni
+    identifier_pattern: "^\s*="
+    baudrate: 9600
+    measurement_area_m2: 0.25 # Varsayılan ölçüm alanı (m^2), yoğunluk hesabı için
+
+# Diğer bölümler daha sonra eklenecek
+# api:
+# scheduler:
+# alerts:
