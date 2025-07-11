@@ -32,24 +32,19 @@ class JobScheduler:
         self.notification_service = NotificationService()
         self.remote_api = RemoteApiService()
 
-        # Durum İzleme Değişkenleri
         self.last_collection_time: Optional[datetime] = None
         self.last_collection_status: str = "Not run yet"
         self.last_api_post_time: Optional[datetime] = None
         self.last_api_post_status: str = "Not run yet"
         self.last_daily_report_time: Optional[datetime] = None
-        
-        # Her döngünün başındaki sensör durumlarının anlık görüntüsünü saklar
         self.last_cycle_sensor_snapshot: Dict[str, tuple] = {}
 
     def setup_schedule(self):
         interval = settings.DATA_COLLECTION_INTERVAL_MINUTES
         schedule.every(interval).minutes.do(self.run_collection_cycle)
         logger.info(f"Ana görev {interval} dakikada bir çalışacak şekilde ayarlandı.")
-
         schedule.every().hour.at(":01").do(self.run_remote_post_job)
         logger.info("Uzak API'ye veri gönderme görevi her saatin 1. dakikasında çalışacak şekilde ayarlandı.")
-        
         schedule.every().day.at("00:05").do(self.run_daily_report_job)
         logger.info("Günlük anomali raporu görevi her gün 00:05'te çalışacak şekilde ayarlandı.")
 
@@ -59,13 +54,11 @@ class JobScheduler:
         try:
             start_of_report_period = self.last_daily_report_time - timedelta(days=1)
             total_anomalies = self.db_service.count_anomalies_since(start_of_report_period)
-
             report_title = "Günlük Sistem Sağlık ve Anomali Raporu"
             report_details = (
                 f"Rapor Dönemi: {start_of_report_period.strftime('%Y-%m-%d %H:%M')} - {self.last_daily_report_time.strftime('%Y-%m-%d %H:%M')}\n\n"
                 f"Bu dönemde tespit edilen toplam anomali sayısı: {total_anomalies}"
             )
-            
             logger.info(f"--- {report_title} ---\n{report_details}\n--- RAPOR SONU ---")
             self.notification_service.send_error_notification(report_title, report_details)
         except Exception as e:
@@ -91,26 +84,22 @@ class JobScheduler:
         logger.info("Veri toplama döngüsü başlatılıyor...")
         self.last_collection_time = datetime.now()
         try:
-            # 1. Bağlan ve Durumun "Anlık Görüntüsünü" Al
             self.sensor_manager.discover_and_connect()
-            self._take_sensor_snapshot() # <-- Anlık görüntü burada alınıyor
+            self._take_sensor_snapshot()
             self.sensor_manager.prepare_for_reading()
-            
             if not self.sensor_manager.is_temp_hum_connected:
-                 if not self.collector.owm_service.is_fallback_active:
+                if not self.collector.owm_service.is_fallback_active:
                     logger.warning("I2C sensor not found. Activating OWM fallback for this cycle.")
                     self.collector.owm_service.is_fallback_active = True
                     self.collector.owm_service.update_cache(force_update=True)
             else:
-                 if self.collector.owm_service.is_fallback_active:
+                if self.collector.owm_service.is_fallback_active:
                     logger.info("I2C sensor is back online. Disabling OWM fallback.")
                     self.collector.owm_service.is_fallback_active = False
-
             collected_readings: List[ProcessedReading] = []
             burst_duration = timedelta(minutes=settings.DATA_BURST_DURATION_MINUTES)
             sample_interval = timedelta(seconds=settings.DATA_BURST_SAMPLE_INTERVAL_SECONDS)
             end_time = datetime.now() + burst_duration
-
             with tqdm(total=int(burst_duration.total_seconds()), desc="[bold magenta]🔥 Veri Toplanıyor[/bold magenta]", bar_format="{l_bar}{bar}|", file=sys.stdout, leave=True) as pbar:
                 while datetime.now() < end_time:
                     start_loop_time = time.time()
@@ -121,39 +110,29 @@ class JobScheduler:
                     sleep_time = max(0, sample_interval.total_seconds() - loop_duration)
                     time.sleep(sleep_time)
                     pbar.update(int(sample_interval.total_seconds()))
-            
             print()
-
             if not collected_readings:
                 logger.warning("Veri toplama patlaması sonucunda hiç veri elde edilemedi.")
                 self._print_summary(ProcessedReading(), status_icon="⚠️")
                 self.last_collection_status = "Failed (No Data)"
                 return
-
             summary_reading = self.processor.analyze_burst_readings(collected_readings)
             self.db_service.save_reading(summary_reading)
             self.csv_service.save_readings_to_csv([summary_reading])
-            
             self._print_summary(summary_reading, status_icon="✅")
             logger.info("Döngü başarıyla tamamlandı.")
             self.last_collection_status = "Success"
-
         except Exception:
             self.last_collection_status = "Crashed"
             logger.critical("Veri toplama döngüsünde kritik bir hata oluştu!", exc_info=True)
             self.notification_service.send_error_notification("Kritik Döngü Hatası", traceback.format_exc())
             print()
             self._print_summary(ProcessedReading(), status_icon="❌")
-        
         finally:
             self.sensor_manager.disconnect_all()
             self.console.print("[dim]Sensörler bir sonraki döngüye kadar kapatıldı.[/dim]")
-    
+
     def _take_sensor_snapshot(self):
-        """
-        Sensörler bağlandıktan sonra durumlarının bir kopyasını alır.
-        Raporlama bu kopya üzerinden yapılır.
-        """
         self.last_cycle_sensor_snapshot = {
             'height': (self.sensor_manager.is_height_connected, self.sensor_manager.height_port or "Port bulunamadı."),
             'weight': (self.sensor_manager.is_weight_connected, self.sensor_manager.weight_port or "Port bulunamadı."),
@@ -166,46 +145,45 @@ class JobScheduler:
         table.add_column("Öğe", style="bold green", no_wrap=True)
         table.add_column("Durum", style="bold")
         table.add_column("Detay", style="cyan")
-
-        # Anlık duruma değil, saklanan "snapshot"a bakıyoruz
         height_connected, height_detail = self.last_cycle_sensor_snapshot.get('height', (False, "Durum alınamadı"))
         h_status = "[bold green]BAĞLI[/]" if height_connected else "[bold yellow]BAĞLI DEĞİL[/]"
         table.add_row("📏 Yükseklik Sensörü", h_status, height_detail)
-        
         weight_connected, weight_detail = self.last_cycle_sensor_snapshot.get('weight', (False, "Durum alınamadı"))
         w_status = "[bold green]BAĞLI[/]" if weight_connected else "[bold yellow]BAĞLI DEĞİL[/]"
         table.add_row("⚖️ Ağırlık Sensörü", w_status, weight_detail)
-
         temp_hum_connected, temp_hum_detail = self.last_cycle_sensor_snapshot.get('temp_hum', (False, "Durum alınamadı"))
         t_status = "[bold green]BAĞLI[/]" if temp_hum_connected else "[bold red]YEDEK MOD[/]"
         table.add_row("🔌/📡 Sıcaklık/Nem", t_status, temp_hum_detail)
-
         table.add_section()
-
         status_color = {"Success": "green", "Crashed": "red", "Failed": "red", "Failed (No Data)": "yellow"}.get(self.last_collection_status, "white")
         status_text = f"[{status_color}]{self.last_collection_status}[/]"
         time_text = self.last_collection_time.strftime('%H:%M:%S') if self.last_collection_time else "N/A"
         table.add_row("🔄 Son Veri Toplama", status_text, f"Zaman: {time_text}")
-        
         status_color = {"Success": "green", "Crashed": "red", "Failed": "red"}.get(self.last_api_post_status, "white")
         status_text = f"[{status_color}]{self.last_api_post_status}[/]"
         time_text = self.last_api_post_time.strftime('%H:%M:%S') if self.last_api_post_time else "N/A"
         table.add_row("🛰️ Son API Gönderimi", status_text, f"Zaman: {time_text}")
-        
         report_time_str = self.last_daily_report_time.strftime('%Y-%m-%d %H:%M') if self.last_daily_report_time else "Henüz oluşturulmadı"
         table.add_row("📜 Son Günlük Rapor", report_time_str, "")
-
         table.add_section()
         
+        # --- BU BÖLÜMÜN SON VE KESİN HALİ ---
         next_run_str = "N/A"
         job_details_str = "Hiç görev planlanmamış."
-        if schedule.jobs and schedule.next_run is not None:
+        # schedule.next_run bir sonraki görevin ne zaman çalışacağını bir datetime nesnesi olarak verir.
+        # Eğer hiç görev yoksa None döner.
+        if schedule.next_run:
             next_run_time_obj = schedule.next_run
             next_run_str = next_run_time_obj.strftime('%H:%M:%S')
-            upcoming_jobs = [
-                getattr(job.job_func, '__name__', 'Bilinmeyen Görev')
-                for job in schedule.jobs if job.next_run == next_run_time_obj
-            ]
+            
+            # O zamanda çalışacak tüm işleri bulalım
+            upcoming_jobs = []
+            for job in schedule.jobs:
+                if job.next_run == next_run_time_obj:
+                    # Fonksiyonun __name__ özelliğini alarak fonksiyonun adını bulalım.
+                    # partial gibi durumlarda __name__ olmayabilir, bu yüzden getattr ile güvenli erişim sağlıyoruz.
+                    func_name = getattr(job.job_func, '__name__', 'Bilinmeyen Görev')
+                    upcoming_jobs.append(func_name)
             job_details_str = ", ".join(sorted(list(set(upcoming_jobs))))
 
         table.add_row("⏳ Sonraki Görev", next_run_str, job_details_str)
@@ -215,7 +193,7 @@ class JobScheduler:
         logger.info("--- SYSTEM HEALTH CHECK ---")
         logger.info(f"Last collection status: {self.last_collection_status} at {self.last_collection_time}")
         logger.info(f"Last API post status: {self.last_api_post_status} at {self.last_api_post_time}")
-        if schedule.jobs and schedule.next_run:
+        if schedule.next_run:
             next_run_time = schedule.next_run.strftime('%Y-%m-%d %H:%M:%S')
             logger.info(f"Next scheduled job at: {next_run_time}")
         logger.info("--- END HEALTH CHECK ---")
