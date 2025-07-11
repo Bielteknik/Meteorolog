@@ -1,105 +1,132 @@
+# Dosya: Meteorolog/src/main.py
+
 import time
 from datetime import datetime
 import yaml
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-# Modülleri içe aktar
+# Modüller
 from modules.sensor_manager import SensorManager
 from modules.data_processor import DataProcessor
 from modules.storage_manager import StorageManager
+from modules.communication_manager import CommunicationManager
+from modules.rich_display import RichDisplay # YENİ
 
 CONFIG_PATH = '../config/config.yaml'
 DB_PATH = '../data/database/station_data.db'
 
 class MeteorologyStation:
     def __init__(self, config_path, db_path):
-        print("=============================================")
-        print("=  Kar Gözlem ve Çığ Tahmin İstasyonu v0.2  =")
-        print("=============================================")
-        
+        self.display = RichDisplay()
+        self.display.print_startup_banner()
+
         try:
             with open(config_path, 'r') as f:
                 self.config = yaml.safe_load(f)
         except FileNotFoundError:
             raise SystemExit(f"CRITICAL: Yapılandırma dosyası bulunamadı: {config_path}")
 
+        # Sistem durumunu tutacak merkezi bir sözlük
+        self.system_status = {
+            'sensors': {},
+            'i2c_sensor': {'connected': False, 'detail': 'Henüz kontrol edilmedi.'},
+            'last_collection': {},
+            'last_api_send': {},
+            'next_job': {}
+        }
+        
         # Modülleri başlat
-        self.sensor_manager = SensorManager(config_path)
+        self.sensor_manager = SensorManager(self.config)
         self.data_processor = DataProcessor(self.config)
         self.storage_manager = StorageManager(db_path)
-
-        # Durum Makinesi için başlangıç durumu
-        self.state = "INITIALIZING"
-        print(f"INFO: Sistem durumu: {self.state}")
-
+        self.comm_manager = CommunicationManager(self.config)
+        
     def startup(self):
-        """Sistemin başlangıç prosedürleri."""
-        self.state = "SENSOR_DISCOVERY"
-        print(f"\n--- DURUM: {self.state} ---")
-        # Sensörleri bul ve ata
-        if not self.sensor_manager.find_and_assign_sensors():
-            print("WARNING: Tüm sensörler bulunamadı, sistem kısıtlı modda çalışacak.")
-        
-        self.state = "IDLE"
-        print(f"\n--- DURUM: {self.state} ---")
-        print("INFO: Başlatma prosedürü tamamlandı. Zamanlanmış görevler bekleniyor...")
+        """Sistemin başlangıç prosedürleri ve ilk durum kontrolü."""
+        print("INFO: Sensörler keşfediliyor ve ilk durum paneli hazırlanıyor...")
+        self.sensor_manager.find_and_assign_sensors()
+        self._update_status_dashboard() # İlk dashboard'u göster
 
-    def collect_process_store_job(self):
+    def _update_status_dashboard(self, next_job_info=None):
+        """Sistem durumu sözlüğünü günceller ve paneli yazdırır."""
+        # Seri sensör durumlarını güncelle
+        assigned_ports = self.sensor_manager.get_assigned_ports()
+        for name, definition in self.config['sensors'].items():
+            if 'identifier_pattern' in definition: # Sadece seri sensörler
+                self.system_status['sensors'][name] = {
+                    'connected': name in assigned_ports,
+                    'detail': f"Port: {assigned_ports.get(name, 'Bulunamadı')}"
+                }
+        
+        # I2C sensör durumunu güncelle (Bu kısım read_all_sensors içinde güncellenecek)
+        # Şimdilik varsayılan kalıyor.
+        
+        if next_job_info:
+             self.system_status['next_job'] = {
+                'name': next_job_info.get('name'),
+                'time': next_job_info.get('time').strftime('%H:%M:%S')
+            }
+
+        self.display.print_status_dashboard(self.system_status)
+
+    def run_collection_cycle(self):
         """Zamanlayıcı tarafından periyodik olarak çalıştırılacak ana görev."""
-        print("\n" + "="*50)
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Periyodik görev başlatıldı.")
-        
-        # 1. Veri Toplama
-        self.state = "COLLECTING_DATA"
-        print(f"--- DURUM: {self.state} ---")
+        self.display.print_collection_header()
+
+        # 1. VERİ TOPLAMA
         raw_data = self.sensor_manager.read_all_sensors()
-        if not raw_data:
-            print("WARNING: Hiçbir sensörden veri toplanamadı. Görev sonlandırılıyor.")
-            self.state = "IDLE"
-            return
-        print(f"SUCCESS: Ham veriler toplandı: {raw_data}")
-
-        # 2. Veri İşleme
-        self.state = "PROCESSING_DATA"
-        print(f"--- DURUM: {self.state} ---")
-        processed_data = {}
-        # Ham verileri parse et
-        for sensor_name, value in raw_data.items():
-            parsed_value = self.data_processor.parse_raw_data(sensor_name, value)
-            # İsimleri daha anlamlı hale getir (distance -> distance_mm)
-            if parsed_value is not None:
-                if sensor_name == 'distance':
-                    processed_data['distance_mm'] = parsed_value
-                elif sensor_name == 'weight':
-                    processed_data['weight_g'] = parsed_value
+        self.system_status['last_collection'] = {
+            'status': 'Success' if raw_data else 'Failure',
+            'time': datetime.now().strftime('%H:%M:%S')
+        }
+        # I2C durumunu anlık olarak güncelle
+        self.system_status['i2c_sensor']['connected'] = 'temperature_c' in raw_data
+        self.system_status['i2c_sensor']['detail'] = "Veri okundu" if 'temperature_c' in raw_data else "Bağlantı hatası"
         
-        # Türetilmiş değerleri hesapla (Kar Yüksekliği, Yoğunluk vb.)
-        final_data = self.data_processor.calculate_derived_values(processed_data)
-        final_data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"SUCCESS: Veriler işlendi: {final_data}")
-
-        # 3. Veri Saklama
-        self.state = "STORING_DATA"
-        print(f"--- DURUM: {self.state} ---")
-        self.storage_manager.save_reading(final_data)
+        # 2. VERİ İŞLEME
+        processed_data = self.data_processor.process_reading_data(raw_data)
         
-        self.state = "IDLE"
-        print(f"--- DURUM: {self.state} ---")
-        print("Periyodik görev başarıyla tamamlandı.")
-        print("="*50 + "\n")
+        # 3. VERİ SAKLAMA
+        if processed_data:
+            processed_data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.storage_manager.save_reading(processed_data)
+        
+        self.display.print_collection_result(processed_data)
+        self._update_status_dashboard() # Her döngü sonunda durumu tekrar göster
+
+    def run_api_send_cycle(self):
+        """API gönderme görevi."""
+        latest_data = self.storage_manager.get_latest_reading()
+        if latest_data:
+            api_payload = self.comm_manager.format_data_for_api(latest_data)
+            success = self.comm_manager.send_data(api_payload)
+            self.system_status['last_api_send'] = {
+                'status': 'Success' if success else 'Failure',
+                'time': datetime.now().strftime('%H:%M:%S')
+            }
+        self._update_status_dashboard()
 
 
 if __name__ == "__main__":
     station = MeteorologyStation(config_path=CONFIG_PATH, db_path=DB_PATH)
-    station.startup()
+    station.startup() # İlk keşif ve panel
     
-    # Görev Zamanlayıcı
     scheduler = BlockingScheduler(timezone="Europe/Istanbul")
-    # Test için her 1 dakikada bir çalıştır. Normalde 'minutes=15' olacak.
-    scheduler.add_job(station.collect_process_store_job, 'interval', minutes=1, id='main_job')
     
-    print(f"INFO: Ana görev '{scheduler.get_job('main_job').name}' her {1} dakikada bir çalışacak şekilde ayarlandı.")
+    collect_interval = station.config['scheduler']['data_collection_interval_minutes']
+    api_interval = station.config['scheduler']['api_send_interval_minutes']
+    
+    # Görevleri zamanla ve hemen bir kez çalıştır
+    scheduler.add_job(station.run_collection_cycle, 'interval', minutes=collect_interval, id='collect_job', name="Veri Toplama")
+    scheduler.add_job(station.run_api_send_cycle, 'interval', minutes=api_interval, id='api_job', name="API Gönderim")
+
+    print(f"\nINFO: Veri toplama görevi her {collect_interval} dakikada bir çalışacak.")
+    print(f"INFO: API gönderme görevi her {api_interval} dakikada bir çalışacak.")
     print("...CTRL+C ile çıkış yapabilirsiniz...")
+    
+    # İlk döngüyü manuel olarak tetikle
+    print("✨ Sistem aktif. İlk döngü hemen başlatılıyor...")
+    station.run_collection_cycle()
     
     try:
         scheduler.start()

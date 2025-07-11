@@ -1,3 +1,6 @@
 pyserial
 pyyaml
 apscheduler
+requests
+smbus2
+rich
