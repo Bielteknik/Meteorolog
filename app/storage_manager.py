@@ -3,6 +3,7 @@ from sqlalchemy import (create_engine, Column, Integer, String, Float,
 from sqlalchemy.orm import sessionmaker, declarative_base
 from datetime import datetime
 import os
+from rich.console import Console
 
 # Veritabanı dosyasının adı
 DATABASE_FILE = "station_data.db"
@@ -12,7 +13,7 @@ engine = create_engine(f"sqlite:///{DATABASE_FILE}", connect_args={"check_same_t
 # SQLAlchemy için temel sınıflar
 Base = declarative_base()
 metadata = MetaData()
-
+console = Console()
 # --- Tablo Modellerini Tanımla ---
 # Base sınıfından miras alarak tablolarımızı Python sınıfları olarak tanımlıyoruz.
 class Reading(Base):
@@ -73,9 +74,9 @@ class StorageManager:
         try:
             # Base.metadata.create_all, Base'den türeyen tüm tabloları oluşturur.
             Base.metadata.create_all(self.engine)
-            print("✅ Veritabanı ve tablolar başarıyla kontrol edildi/oluşturuldu.")
+            console.print("✅ Veritabanı ve tablolar başarıyla kontrol edildi/oluşturuldu.")
         except Exception as e:
-            print(f"❌ Veritabanı oluşturulurken bir hata oluştu: {e}")
+            console.print(f"❌ Veritabanı oluşturulurken bir hata oluştu: {e}")
             exit(1)
 
     def get_session(self):
@@ -103,9 +104,9 @@ class StorageManager:
             )
             session.add(new_reading)
             session.commit()
-            print("   [bold]💾 Veri başarıyla veritabanına kaydedildi.[/bold]")
+            console.print("   [bold]💾 Veri başarıyla veritabanına kaydedildi.[/bold]")
         except Exception as e:
-            print(f"   ❌ Veritabanına kaydetme hatası: {e}")
+            console.print(f"   ❌ Veritabanına kaydetme hatası: {e}")
             session.rollback() # Hata durumunda işlemi geri al
         finally:
             session.close() # Oturumu her zaman kapat
@@ -118,7 +119,7 @@ class StorageManager:
             results = session.query(Reading).filter(Reading.timestamp >= one_hour_ago).all()
             return results
         except Exception as e:
-            print(f"  ❌ Son 1 saatlik verileri okuma hatası: {e}")
+            console.print(f"  ❌ Son 1 saatlik verileri okuma hatası: {e}")
             return []
         finally:
             session.close()
@@ -130,9 +131,9 @@ class StorageManager:
             new_item = ApiQueue(payload=payload_json, attempts=1)
             session.add(new_item)
             session.commit()
-            print("  ⚠️ Veri API kuyruğuna eklendi.")
+            console.print("  ⚠️ Veri API kuyruğuna eklendi.")
         except Exception as e:
-            print(f"  ❌ API kuyruğuna ekleme hatası: {e}")
+            console.print(f"  ❌ API kuyruğuna ekleme hatası: {e}")
             session.rollback()
         finally:
             session.close()
@@ -148,7 +149,7 @@ class StorageManager:
                 session.commit()
             return item
         except Exception as e:
-            print(f"  ❌ API kuyruğundan veri alma hatası: {e}")
+            console.print(f"  ❌ API kuyruğundan veri alma hatası: {e}")
             return None
         finally:
             session.close()
@@ -161,7 +162,7 @@ class StorageManager:
             session.delete(item_to_delete)
             session.commit()
         except Exception as e:
-            print(f"  ❌ API kuyruğundan silme hatası: {e}")
+            console.print(f"  ❌ API kuyruğundan silme hatası: {e}")
             session.rollback()
         finally:
             session.close()
