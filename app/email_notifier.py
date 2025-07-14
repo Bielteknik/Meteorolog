@@ -2,9 +2,14 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
+from rich.console import Console
 
+# Proje içi modülleri import et
 from .config import settings
-from .storage_manager import storage_manager
+# Düzeltme: EmailLog modelini de import ediyoruz
+from .storage_manager import storage_manager, EmailLog
+
+console = Console()
 
 class EmailNotifier:
     """E-posta ile bildirim gönderme işlemlerini yönetir."""
@@ -17,10 +22,14 @@ class EmailNotifier:
         session = storage_manager.get_session()
         try:
             one_day_ago = datetime.now() - timedelta(hours=24)
-            sent_today = session.query(EmailLog).filter(EmailLog.timestamp >= one_day_ago).count()
+            # Sadece kritik olmayan e-postaları say
+            sent_today = session.query(EmailLog).filter(
+                EmailLog.timestamp >= one_day_ago,
+                EmailLog.subject.notlike('%Kritik%') # 'Kritik' içermeyenleri say
+            ).count()
             
             if sent_today >= settings.email.daily_limit:
-                print(f"  ⚠️ Günlük e-posta limiti ({settings.email.daily_limit}) aşıldı. E-posta gönderilmeyecek.")
+                console.print(f"  [yellow]⚠️ Günlük e-posta limiti ({settings.email.daily_limit}) aşıldı. E-posta gönderilmeyecek.[/yellow]")
                 return False
             return True
         finally:
@@ -28,11 +37,17 @@ class EmailNotifier:
 
     def _log_email(self, subject: str):
         """Gönderilen e-postayı veritabanına kaydeder."""
+        if not settings.email.enabled:
+            return
+            
         session = storage_manager.get_session()
         try:
             log = EmailLog(recipient=settings.email.recipient, subject=subject)
             session.add(log)
             session.commit()
+        except Exception as e:
+            console.print(f"  [red]❌ E-posta loglama hatası: {e}[/red]")
+            session.rollback()
         finally:
             session.close()
 
@@ -42,29 +57,31 @@ class EmailNotifier:
         is_critical=True ise e-posta limitini yok sayar.
         """
         if not settings.email.enabled:
-            print("  ℹ️ E-posta gönderimi devre dışı.")
+            console.print("  [dim]ℹ️ E-posta gönderimi devre dışı.[/dim]")
             return
 
         if not is_critical and not self._can_send_email():
             return
 
-        print(f"  📧 E-posta gönderiliyor: '{subject}'")
+        final_subject = f"[KRİTİK] - [{settings.station.id}] - {subject}" if is_critical else f"[{settings.station.id}] - {subject}"
+        
+        console.print(f"  [cyan]📧 E-posta gönderiliyor: '{final_subject}'[/cyan]")
         
         msg = MIMEMultipart()
         msg['From'] = settings.email.sender
         msg['To'] = settings.email.recipient
-        msg['Subject'] = f"[{settings.station.id}] - {subject}"
+        msg['Subject'] = final_subject
         
-        msg.attach(MIMEText(body, 'plain'))
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
         try:
-            # SSL/TLS için SMTPServer nesnesi
-            server = smtplib.SMTP_SSL(settings.email.smtp_server, settings.email.smtp_port)
+            # SSL/TLS için SMTPServer nesnesi (Port 465)
+            server = smtplib.SMTP_SSL(settings.email.smtp_server, settings.email.smtp_port, timeout=10)
             server.login(settings.email.sender, settings.secrets.password)
             server.send_message(msg)
             server.quit()
             
-            print("  ✅ E-posta başarıyla gönderildi.")
-            self._log_email(subject) # Gönderimi logla
+            console.print("  [green]✅ E-posta başarıyla gönderildi.[/green]")
+            self._log_email(final_subject)
         except Exception as e:
-            print(f"  ❌ E-posta gönderme hatası: {e}")
+            console.print(f"  [red]❌ E-posta gönderme hatası: {e}[/red]")
