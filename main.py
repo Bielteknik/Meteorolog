@@ -1,4 +1,3 @@
-# main.py
 import time
 import sys
 import json
@@ -15,6 +14,8 @@ from app.storage_manager import storage_manager
 from app.sensor_manager import SensorManager
 from app.data_processor import DataProcessor
 from app.weather_api import ApiClient
+from app.anomaly_detector import AnomalyDetector
+from app.report_generator import ReportGenerator
 
 # ==============================================================================
 # Global Nesneler ve Başlatma
@@ -24,6 +25,8 @@ console = Console()
 sensor_manager = SensorManager()
 data_processor = DataProcessor()
 api_client = ApiClient()
+anomaly_detector = AnomalyDetector()
+report_generator = ReportGenerator()
 
 # ==============================================================================
 # Yardımcı Fonksiyonlar
@@ -34,9 +37,6 @@ def calculate_summary(readings):
     if not readings:
         return None
     
-    # numpy ile kolayca ve güvenli bir şekilde ortalama al
-    # np.nanmean, None/NaN değerleri görmezden gelir.
-    # Önce verileri numpy array'e çevirelim, None'ları np.nan yapalım.
     def to_float_or_nan(value):
         try:
             return float(value)
@@ -46,23 +46,18 @@ def calculate_summary(readings):
     temperatures = np.array([to_float_or_nan(r.temperature_c) for r in readings])
     humidities = np.array([to_float_or_nan(r.humidity_percent) for r in readings])
     snow_heights = np.array([to_float_or_nan(r.snow_height_mm) for r in readings])
-    # Kar Ağırlığı için de aynısını yapabiliriz (eğer veritabanına eklediysek)
-    # snow_weights = np.array([to_float_or_nan(r.snow_weight_kg) for r in readings])
-
+    
     summary = {
         'temperature_c': np.nanmean(temperatures),
         'humidity_percent': np.nanmean(humidities),
         'snow_height_mm': np.nanmean(snow_heights),
     }
     
-    # API'nin beklediği formata çevir
-    # ÖNEMLİ: API'niz hangi alanları ve tipleri istiyorsa, burası ona göre düzenlenmelidir.
     api_payload = {
         "tarih": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "sicaklik": int(round(summary.get('temperature_c', 0))),
         "nem": int(round(summary.get('humidity_percent', 0))),
         "karyuksekligi": int(round(summary.get('snow_height_mm', 0))),
-        # "mesafe", "agirlik" gibi alanlar gerekirse burada hesaplanıp eklenebilir.
     }
     return api_payload
 
@@ -71,7 +66,7 @@ def calculate_summary(readings):
 # ==============================================================================
 
 def collection_cycle_task():
-    """Ana veri toplama, işleme ve kaydetme döngüsü."""
+    """Ana veri toplama, işleme, kaydetme ve anomali kontrolü döngüsü."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     console.print(
         f"\n[bold yellow]🔄 ({timestamp}) [cyan]Ana Veri Toplama Döngüsü[/cyan] tetiklendi.[/bold yellow]"
@@ -89,7 +84,11 @@ def collection_cycle_task():
     # Adım 3: İşlenmiş veriyi veritabanına kaydet
     storage_manager.save_reading(processed_data)
 
-    # Adım 4: İşlenmiş veriyi konsolda göster
+    # Adım 4: Anomali kontrolü yap
+    console.print("   [dim]...anomali kontrolü yapılıyor...[/dim]")
+    anomaly_detector.check(processed_data)
+    
+    # Adım 5: İşlenmiş veriyi konsolda göster
     console.print("\n   [bold green]📊 İşlenmiş Veriler:[/bold green]")
     console.print(f"   🌡️  Sıcaklık: {processed_data['temperature_c']:.2f}°C" if processed_data['temperature_c'] is not None else "   🌡️  Sıcaklık: N/A")
     console.print(f"   💧  Nem: {processed_data['humidity_percent']:.1f}%" if processed_data['humidity_percent'] is not None else "   💧  Nem: N/A")
@@ -139,8 +138,13 @@ def maintenance_and_retry_task():
             storage_manager.remove_from_api_queue(item_from_queue.id)
     else:
         console.print("  ✅ API gönderim kuyruğu boş.")
-        
-    # Gelecekte buraya sensör sağlığı kontrolü eklenecek.
+
+
+def daily_report_task():
+    """Her gün sonunda Z Raporu oluşturan görev."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    console.print(f"\n[bold green]📜 ({timestamp}) [cyan]Günlük Raporlama Görevi[/cyan] tetiklendi.[/bold green]")
+    report_generator.generate_daily_z_report()
 
 # ==============================================================================
 # Ana Program Başlangıç Noktası
@@ -183,6 +187,14 @@ def main():
             'interval',
             minutes=settings.scheduler.maintenance_interval_minutes,
             id='maintenance_task'
+        )
+        
+        scheduler.add_job(
+            daily_report_task,
+            'cron',
+            hour=23,
+            minute=55,
+            id='report_task'
         )
         
         console.print("\n[bold yellow]⏰ Zamanlayıcı kuruldu. İlk döngünün tetiklenmesi bekleniyor...[/bold yellow]")
