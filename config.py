@@ -1,9 +1,23 @@
 # config.py
 import yaml
 from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic_settings import BaseSettings
 
-# YAML dosyasındaki her bir bölüm için Pydantic modelleri
+# ==============================================================================
+# Model Tanımları
+# ==============================================================================
+
+# --- .env dosyasından okunacak Sırlar için Modeller ---
+# BaseSettings, .env dosyasını otomatik olarak okur.
+class ApiSecrets(BaseSettings):
+    api_key: str = Field(..., alias='API_KEY')
+    openweathermap_key: str = Field(..., alias='OPENWEATHERMAP_KEY')
+
+class EmailSecrets(BaseSettings):
+    password: str = Field(..., alias='EMAIL_PASSWORD')
+
+# --- config.yaml dosyasından okunacak Ayarlar için Modeller ---
+# BaseModel, sadece veri doğrulaması yapar.
 class StationConfig(BaseModel):
     id: str
     measurement_area_m2: float
@@ -19,8 +33,6 @@ class SchedulerConfig(BaseModel):
 
 class ApiConfig(BaseModel):
     base_url: str
-    api_key: str
-    openweathermap_key: str
     city_id: int
     latitude: float
     longitude: float
@@ -37,28 +49,51 @@ class EmailConfig(BaseModel):
     smtp_server: str
     smtp_port: int
     sender: str
-    password: str
     recipient: str
     daily_limit: int
 
-# Tüm yapılandırmayı içeren ana model
+# --- Tüm Yapılandırmayı Birleştiren Ana Model ---
+# "&" operatörü ile iki modeli birleştiriyoruz.
+class FinalApiConfig(ApiConfig, ApiSecrets):
+    pass
+
+class FinalEmailConfig(EmailConfig, EmailSecrets):
+    pass
+
 class Settings(BaseModel):
     station: StationConfig
     sensors: SensorsConfig
     scheduler: SchedulerConfig
-    api: ApiConfig
+    api: FinalApiConfig
     anomaly_rules: AnomalyRulesConfig
-    email: EmailConfig
+    email: FinalEmailConfig
+
+
+# ==============================================================================
+# Yükleyici Fonksiyon
+# ==============================================================================
 
 def load_config(path: str = "config.yaml") -> Settings:
     """
-    YAML yapılandırma dosyasını okur, doğrular ve bir Settings nesnesi döndürür.
+    YAML ve .env dosyalarındaki yapılandırmaları okur, birleştirir,
+    doğrular ve bir Settings nesnesi döndürür.
     """
     try:
+        # 1. YAML dosyasını oku
         with open(path, 'r', encoding='utf-8') as f:
             config_data = yaml.safe_load(f)
-        
-        # YAML verisini Pydantic modeline yükle, doğrulama otomatik yapılır
+
+        # 2. .env dosyasından sırları otomatik olarak yükle
+        # Pydantic-settings bunu arka planda yapar.
+        # Biz sadece Final... modellerini çağırırız.
+        final_api_config = FinalApiConfig(**config_data.get('api', {}))
+        final_email_config = FinalEmailConfig(**config_data.get('email', {}))
+
+        # 3. Yüklenmiş verileri ana yapıya yerleştir
+        config_data['api'] = final_api_config
+        config_data['email'] = final_email_config
+
+        # 4. Birleştirilmiş veriyi ana Pydantic modeline yükle
         settings = Settings(**config_data)
         return settings
     except FileNotFoundError:
