@@ -29,5 +29,5 @@ email:
   smtp_server: "mail.ejder3200.com"
   smtp_port: 465
   sender: "kenandemir@ejder3200.com"
-  recipient: "kenandemir@ejder3200.com"
+  recipient: "kenan.bielteknik@gmail.com"
   daily_limit: 3
