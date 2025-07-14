@@ -1,23 +1,29 @@
-# config.py
 import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 # ==============================================================================
 # Model Tanımları
 # ==============================================================================
 
-# --- .env dosyasından okunacak Sırlar için Modeller ---
-# BaseSettings, .env dosyasını otomatik olarak okur.
-class ApiSecrets(BaseSettings):
-    api_key: str = Field(..., alias='API_KEY')
+# --- .env dosyasından okunacak Sırlar için TEK bir model ---
+# Artık tüm sırlarımızı tek bir sınıfta topluyoruz.
+class Secrets(BaseSettings):
+    # API Anahtarları
+    # api_key'i Optional yaptık ve varsayılan değerini None olarak belirledik.
+    api_key: Optional[str] = Field(None, alias='API_KEY')
     openweathermap_key: str = Field(..., alias='OPENWEATHERMAP_KEY')
-
-class EmailSecrets(BaseSettings):
+    
+    # E-posta Şifresi
     password: str = Field(..., alias='EMAIL_PASSWORD')
+    
+    # Bu sınıfın .env dosyasını kullanacağını belirtiyoruz
+    class Config:
+        env_file = '.env'
+        env_file_encoding = 'utf-8'
 
 # --- config.yaml dosyasından okunacak Ayarlar için Modeller ---
-# BaseModel, sadece veri doğrulaması yapar.
 class StationConfig(BaseModel):
     id: str
     measurement_area_m2: float
@@ -53,21 +59,16 @@ class EmailConfig(BaseModel):
     daily_limit: int
 
 # --- Tüm Yapılandırmayı Birleştiren Ana Model ---
-# "&" operatörü ile iki modeli birleştiriyoruz.
-class FinalApiConfig(ApiConfig, ApiSecrets):
-    pass
-
-class FinalEmailConfig(EmailConfig, EmailSecrets):
-    pass
-
+# Artık daha basit bir yapı kullanıyoruz.
 class Settings(BaseModel):
     station: StationConfig
     sensors: SensorsConfig
     scheduler: SchedulerConfig
-    api: FinalApiConfig
+    api: ApiConfig
     anomaly_rules: AnomalyRulesConfig
-    email: FinalEmailConfig
-
+    email: EmailConfig
+    # Sırları ayrı bir alanda tutuyoruz
+    secrets: Secrets
 
 # ==============================================================================
 # Yükleyici Fonksiyon
@@ -83,15 +84,12 @@ def load_config(path: str = "config.yaml") -> Settings:
         with open(path, 'r', encoding='utf-8') as f:
             config_data = yaml.safe_load(f)
 
-        # 2. .env dosyasından sırları otomatik olarak yükle
-        # Pydantic-settings bunu arka planda yapar.
-        # Biz sadece Final... modellerini çağırırız.
-        final_api_config = FinalApiConfig(**config_data.get('api', {}))
-        final_email_config = FinalEmailConfig(**config_data.get('email', {}))
-
-        # 3. Yüklenmiş verileri ana yapıya yerleştir
-        config_data['api'] = final_api_config
-        config_data['email'] = final_email_config
+        # 2. .env dosyasından sırları yükle
+        # Secrets() çağrısı .env dosyasını otomatik okur.
+        secrets_data = Secrets()
+        
+        # 3. Sırları ana yapılandırma verisine ekle
+        config_data['secrets'] = secrets_data
 
         # 4. Birleştirilmiş veriyi ana Pydantic modeline yükle
         settings = Settings(**config_data)
@@ -104,5 +102,4 @@ def load_config(path: str = "config.yaml") -> Settings:
         exit(1)
 
 # Ayarları global olarak erişilebilir yapmak için bir örnek oluştur
-# Bu, diğer modüllerin "from config import settings" yapmasını sağlar.
 settings = load_config()
