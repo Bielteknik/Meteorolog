@@ -51,23 +51,37 @@ class SensorManager:
             if port.device in [self.height_port, self.weight_port]:
                 continue
             
+            # /dev/ttyS0 gibi dahili portları genellikle atlamak daha iyidir.
+            if "ttyS" in port.device:
+                print(f"  ⏭️  Dahili port {port.device} atlanıyor.")
+                continue
+
+            ser = None # Hata durumunda kapatabilmek için döngü dışında tanımla
             try:
                 # Porta bağlanmayı dene
-                ser = serial.Serial(port.device, 9600, timeout=2)
-                time.sleep(2) # Portun açılması için kısa bir bekleme
+                ser = serial.Serial(port.device, 9600, timeout=1) # Timeout'u 1 saniye yapalım
+                time.sleep(2) # Portun açılması için kritik bekleme
+
+                # Belirli bir süre (örn. 2 saniye) boyunca gelen veriyi topla
+                buffer = b''
+                start_time = time.time()
+                while time.time() - start_time < 2.0:
+                    if ser.in_waiting > 0:
+                        buffer += ser.read(ser.in_waiting)
                 
-                line = ser.readline().decode('utf-8', errors='ignore').strip()
+                # Toplanan veriyi string'e çevir
+                decoded_buffer = buffer.decode('utf-8', errors='ignore')
                 
-                # Yükseklik sensörü mü? ('R' ile başlar)
-                if line.startswith('R') and not self.height_ser:
+                # Yükseklik sensörü mü? ('R' içerir)
+                if 'R' in decoded_buffer and not self.height_ser:
                     self.height_ser = ser
                     self.height_port = port.device
                     self.is_height_ok = True
                     print(f"  ✅ Yükseklik sensörü bağlandı: {self.height_port}")
                     continue # Diğer porta geç
                 
-                # Ağırlık sensörü mü? ('=' ile başlar)
-                elif line.startswith('=') and not self.weight_ser:
+                # Ağırlık sensörü mü? ('=' içerir)
+                elif '=' in decoded_buffer and not self.weight_ser:
                     self.weight_ser = ser
                     self.weight_port = port.device
                     self.is_weight_ok = True
@@ -75,10 +89,13 @@ class SensorManager:
                     continue
                 
                 # Sensör tanınmadıysa portu kapat
+                print(f"  ⚠️ {port.device} portundaki veri tanınamadı. Veri: '{decoded_buffer[:50]}...'")
                 ser.close()
 
             except (serial.SerialException, OSError) as e:
                 print(f"  ❌ {port.device} portuna bağlanırken hata: {e}")
+                if ser and ser.is_open:
+                    ser.close()
 
     def _find_i2c_sensors(self):
         """I2C bus'ını tarar ve SHT3x sensörünü arar."""
