@@ -1,3 +1,4 @@
+# main.py (güncellenmiş hali)
 import time
 import sys
 from datetime import datetime
@@ -6,111 +7,92 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from rich.console import Console
 from rich.panel import Panel
 
-# Değişiklik burada:
+# Değişen importlar
 from app.config import settings
-from app.storage_manager import storage_manager # Yeni modülü import et
+from app.storage_manager import storage_manager
+from app.sensor_manager import SensorManager # Yeni modül
 
-# Konsol nesnesini oluştur
+# Konsol ve sensör yöneticisi nesneleri
 console = Console()
+sensor_manager = SensorManager() # Program başında bir kez oluşturulur
 
 # ==============================================================================
-# Görev Fonksiyonları (Şimdilik Boş)
+# Görev Fonksiyonları
 # ==============================================================================
 
 def collection_cycle_task():
     """
     Ana veri toplama döngüsünü çalıştıran görev.
-    Bu görev, config'deki 'collection_interval_minutes' aralığıyla çalışır.
     """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     console.print(
         f"[bold yellow]🔄 ({timestamp}) [cyan]Ana Veri Toplama Döngüsü[/cyan] tetiklendi.[/bold yellow]"
     )
-    # >>> BURAYA GELECEKTE SENSÖR OKUMA VE İŞLEME KODLARI GELECEK <<<
-    console.print("   [dim]...veri toplanıyor, işleniyor, kaydediliyor...[/dim]")
+    
+    # Adım 1: Sensörlerden ham veriyi oku
+    console.print("   [dim]...sensörlerden veri okunuyor...[/dim]")
+    raw_data = sensor_manager.read_all_sensors()
+    
+    # Okunan ham veriyi göster
+    console.print("   [bold]Okunan Ham Veriler:[/bold]")
+    console.print(f"   📏 Yükseklik: {raw_data['height_raw']}")
+    console.print(f"   ⚖️ Ağırlık: {raw_data['weight_raw']}")
+    
+    # Sıcaklık/Nem verisini formatla
+    if raw_data['temp_hum_raw']:
+        temp, hum = raw_data['temp_hum_raw']
+        console.print(f"   🌡️ Sıcaklık/Nem: {temp:.2f}°C, {hum:.2f}%")
+    else:
+        console.print("   🌡️ Sıcaklık/Nem: Veri okunamadı.")
+    
+    # >>> GELECEK ADIMLAR: Veri işleme, kaydetme vb. buraya gelecek <<<
 
 
+# ... (api_and_summary_task ve maintenance_and_retry_task şimdilik aynı kalabilir) ...
 def api_and_summary_task():
-    """
-    Saatlik özet alıp API'ye gönderen görev.
-    Bu görev, her saat başı çalışır.
-    """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    console.print(
-        f"[bold blue]🛰️  ({timestamp}) [cyan]Saatlik API Gönderim Görevi[/cyan] tetiklendi.[/bold blue]"
-    )
-    # >>> BURAYA GELECEKTE VERİTABANINDAN ORTALAMA ALMA VE API'YE GÖNDERME KODU GELECEK <<<
-
+    console.print(f"🛰️  ({timestamp}) [cyan]Saatlik API Gönderim Görevi[/cyan] tetiklendi.")
 
 def maintenance_and_retry_task():
-    """
-    Bakım ve yeniden deneme görevlerini çalıştıran görev.
-    Bu görev, config'deki 'maintenance_interval_minutes' aralığıyla çalışır.
-    """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    console.print(
-        f"[bold magenta]🛠️  ({timestamp}) [cyan]Bakım Görevi[/cyan] tetiklendi.[/bold magenta]"
-    )
-    # >>> BURAYA GELECEKTE API KUYRUĞU VE SENSÖR SAĞLIĞI KONTROL KODLARI GELECEK <<<
+    console.print(f"🛠️  ({timestamp}) [cyan]Bakım Görevi[/cyan] tetiklendi.")
 
 # ==============================================================================
 # Ana Program
 # ==============================================================================
 
 def main():
-    """
-    Ana program başlangıç noktası.
-    Zamanlayıcıyı kurar ve çalıştırır.
-    """
     try:
-        # Başlangıç Paneli
         console.print(
             Panel(
                 f"[bold]İstasyon ID:[/] [cyan]{settings.station.id}[/]\n"
-                f"[bold]Veri Toplama Aralığı:[/] [cyan]{settings.scheduler.collection_interval_minutes} dakika[/]\n"
-                f"[bold]API Gönderim:[/] [cyan]Her saat başı[/]",
+                f"[bold]Veri Toplama Aralığı:[/] [cyan]{settings.scheduler.collection_interval_minutes} dakika[/]",
                 title="[bold green]❄️ Akıllı Kar İstasyonu Başlatıldı ❄️[/bold green]",
                 border_style="green"
             )
         )
         
-        # Zamanlayıcıyı kur
         scheduler = BlockingScheduler(timezone="Europe/Istanbul")
         
-        # Görevleri zamanlayıcıya ekle
-        scheduler.add_job(
-            collection_cycle_task,
-            'interval',
-            minutes=settings.scheduler.collection_interval_minutes,
-            id='collection_task'
-        )
+        # Görevleri ekle
+        scheduler.add_job(collection_cycle_task, 'interval', minutes=settings.scheduler.collection_interval_minutes)
+        scheduler.add_job(api_and_summary_task, 'cron', hour=settings.scheduler.api_summary_hour, minute=1) # 0 çakışmasın diye 1 yapalım
+        scheduler.add_job(maintenance_and_retry_task, 'interval', minutes=settings.scheduler.maintenance_interval_minutes)
         
-        scheduler.add_job(
-            api_and_summary_task,
-            'cron',
-            hour=settings.scheduler.api_summary_hour,
-            minute=0, # Her saatin 0. dakikasında
-            id='api_task'
-        )
+        console.print("\n[bold yellow]⏰ Zamanlayıcı kuruldu. İlk döngü hemen çalıştırılıyor...[/bold yellow]")
+        # Program başlar başlamaz ilk veriyi almak için görevi bir kere manuel çağır
+        collection_cycle_task()
         
-        scheduler.add_job(
-            maintenance_and_retry_task,
-            'interval',
-            minutes=settings.scheduler.maintenance_interval_minutes,
-            id='maintenance_task'
-        )
-        
-        console.print("[bold yellow]⏰ Zamanlayıcı kuruldu. Görevlerin tetiklenmesi bekleniyor...[/bold yellow]")
+        console.print("\n[bold yellow]✅ İlk döngü tamamlandı. Normal zamanlama bekleniyor...[/bold yellow]")
         console.print("[dim](Çıkmak için Ctrl+C'ye basın)[/dim]\n")
         
-        # Zamanlayıcıyı başlat (bu satır programı burada kilitler ve görevleri çalıştırır)
         scheduler.start()
 
     except (KeyboardInterrupt, SystemExit):
         console.print("\n[bold red]🚫 Program sonlandırılıyor...[/bold red]")
-    except Exception as e:
-        console.print(f"[bold red]💥 Beklenmedik bir hata oluştu: {e}[/bold red]")
-        sys.exit(1)
+    finally:
+        # Program kapanırken sensör bağlantılarını kapat
+        sensor_manager.close_all()
 
 if __name__ == "__main__":
     main()
