@@ -1,0 +1,41 @@
+# ----------------------------------------------------
+# Akıllı Kar İstasyonu - Merkezi Yapılandırma Dosyası
+# ----------------------------------------------------
+
+station:
+  id: "EJDER3200-STATION-01"
+  measurement_area_m2: 1.0
+
+sensors:
+  height_sensor_zero_mm: 3700
+
+scheduler:
+  collection_interval_minutes: 30
+  collection_duration_minutes: 1
+  api_summary_hour: '*'
+  maintenance_interval_minutes: 5
+
+api:
+  base_url: "https://rm.ejder3200.com/api/MeteorolojiIstasyon/Postveriekle"
+  api_key: "BURAYA_GIZLI_API_ANAHTARINI_GIRIN"
+  openweathermap_key: "BURAYA_GIZLI_OWM_ANAHTARINI_GIRIN"
+  city_id: 5128581 # Örnek: New York
+  latitude: 40.7128
+  longitude: -74.0060
+
+anomaly_rules:
+  critical_snow_increase_cm_per_hour: 30.0
+  critical_temp_pattern_enabled: true
+  frozen_sensor_threshold_cycles: 6
+  # Değişim hızı limitleri (bir döngüden diğerine)
+  max_temp_change_per_cycle: 10.0 # °C
+  max_snow_height_change_per_cycle_cm: 20.0 # cm
+
+email:
+  enabled: true
+  smtp_server: "smtp.example.com"
+  smtp_port: 587
+  sender: "station@example.com"
+  password: "BURAYA_EPOSTA_SIFRESINI_GIRIN"
+  recipient: "admin@example.com"
+  daily_limit: 3
