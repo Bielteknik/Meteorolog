@@ -91,8 +91,9 @@ def main():
     except (KeyboardInterrupt, SystemExit):
         console.print("\n[bold red]🚫 Program sonlandırılıyor...[/bold red]")
     finally:
-        # Program kapanırken sensör bağlantılarını kapat
+        # Program kapanırken sadece kalıcı bağlantıları kapat
         sensor_manager.close_all()
+        console.print("\n[bold red]🚫 Program sonlandırıldı.[/bold red]")
 
 if __name__ == "__main__":
     main()
