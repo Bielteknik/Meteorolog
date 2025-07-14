@@ -9,7 +9,7 @@ scheduler:
   collection_interval_minutes: 1
   collection_duration_minutes: 1
   api_summary_hour: '*'
-  maintenance_interval_minutes: 2
+  maintenance_interval_minutes: 1
 
 api:
   base_url: "https://rm.ejder3200.com/api/MeteorolojiIstasyon/Postveriekle"  

@@ -20,11 +20,12 @@ class Reading(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime, default=datetime.now)
     snow_height_mm = Column(Float, nullable=True)
+    snow_weight_kg = Column(Float, nullable=True)  # <-- YENİ SÜTUN
     snow_density_kg_m3 = Column(Float, nullable=True)
     swe_mm = Column(Float, nullable=True)
     temperature_c = Column(Float, nullable=True)
     humidity_percent = Column(Float, nullable=True)
-    data_source = Column(String, default='sensor') # 'sensor' veya 'api'
+    data_source = Column(String, default='sensor')
 
 class ApiQueue(Base):
     __tablename__ = 'api_queue'
@@ -93,6 +94,7 @@ class StorageManager:
             new_reading = Reading(
                 timestamp=datetime.now(),
                 snow_height_mm=processed_data.get("snow_height_mm"),
+                snow_weight_kg=processed_data.get("snow_weight_kg"), # <-- YENİ SATIR                
                 snow_density_kg_m3=processed_data.get("snow_density_kg_m3"),
                 swe_mm=processed_data.get("swe_mm"),
                 temperature_c=processed_data.get("temperature_c"),
@@ -108,6 +110,61 @@ class StorageManager:
         finally:
             session.close() # Oturumu her zaman kapat
 
+    def get_readings_for_last_hour(self):
+        """Son 1 saat içindeki tüm okumaları veritabanından çeker."""
+        session = self.get_session()
+        try:
+            one_hour_ago = datetime.now() - timedelta(hours=1)
+            results = session.query(Reading).filter(Reading.timestamp >= one_hour_ago).all()
+            return results
+        except Exception as e:
+            print(f"  ❌ Son 1 saatlik verileri okuma hatası: {e}")
+            return []
+        finally:
+            session.close()
+
+    def add_to_api_queue(self, payload_json: str):
+        """Gönderilemeyen bir veri paketini API kuyruğuna ekler."""
+        session = self.get_session()
+        try:
+            new_item = ApiQueue(payload=payload_json, attempts=1)
+            session.add(new_item)
+            session.commit()
+            print("  ⚠️ Veri API kuyruğuna eklendi.")
+        except Exception as e:
+            print(f"  ❌ API kuyruğuna ekleme hatası: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+    def get_oldest_from_api_queue(self):
+        """Kuyruktaki en eski öğeyi alır ve deneme sayısını artırır."""
+        session = self.get_session()
+        try:
+            # En eski öğeyi (en düşük id) bul
+            item = session.query(ApiQueue).order_by(ApiQueue.id.asc()).first()
+            if item:
+                item.attempts += 1
+                session.commit()
+            return item
+        except Exception as e:
+            print(f"  ❌ API kuyruğundan veri alma hatası: {e}")
+            return None
+        finally:
+            session.close()
+
+    def remove_from_api_queue(self, item_id: int):
+        """Başarıyla gönderilen bir öğeyi ID'sine göre kuyruktan siler."""
+        session = self.get_session()
+        try:
+            item_to_delete = session.query(ApiQueue).filter(ApiQueue.id == item_id).one()
+            session.delete(item_to_delete)
+            session.commit()
+        except Exception as e:
+            print(f"  ❌ API kuyruğundan silme hatası: {e}")
+            session.rollback()
+        finally:
+            session.close()
 
 # Ana veritabanı yöneticisi nesnesini oluştur
 storage_manager = StorageManager(engine)
