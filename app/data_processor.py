@@ -35,13 +35,14 @@ class DataProcessor:
         """
         Ham veri sözlüğünü alır ve işlenmiş, zenginleştirilmiş bir sözlük döndürür.
         """
+        # Varsayılan değerleri 0.0 olarak ayarlıyoruz
         processed_data = {
-            "temperature_c": None,
+            "temperature_c": None, # Sıcaklık/Nem None olabilir
             "humidity_percent": None,
-            "snow_height_mm": None,
-            "snow_weight_kg": None,
-            "snow_density_kg_m3": None,
-            "swe_mm": None,
+            "snow_height_mm": 0.0,
+            "snow_weight_kg": 0.0,
+            "snow_density_kg_m3": 0.0,
+            "swe_mm": 0.0,
             "data_source": "sensor"
         }
 
@@ -50,7 +51,6 @@ class DataProcessor:
             processed_data["temperature_c"] = raw_data["temp_hum_raw"][0]
             processed_data["humidity_percent"] = raw_data["temp_hum_raw"][1]
         else:
-            # Fiziksel sensörden veri gelmediyse, API'den yedek veri çek
             print("  ⚠️ Fiziksel sıcaklık sensörü verisi yok. Yedek API'ye başvuruluyor...")
             backup_data = self.weather_api.get_backup_data()
             if backup_data:
@@ -64,29 +64,28 @@ class DataProcessor:
 
         # Adım 3: Ana metrikleri hesapla
         if distance_mm is not None:
-            # Kar Yüksekliği (mm) = Referans Yükseklik - Ölçülen Mesafe
             snow_height = settings.sensors.height_sensor_zero_mm - distance_mm
-            processed_data["snow_height_mm"] = max(0, snow_height) # Negatif olamaz
+            processed_data["snow_height_mm"] = max(0.0, snow_height) # Negatif olamaz
 
         if weight_kg is not None:
             processed_data["snow_weight_kg"] = weight_kg
 
         # Adım 4: Yoğunluk ve SWE'yi hesapla (eğer yeterli veri varsa)
-        snow_height_m = processed_data.get("snow_height_mm")
-        if snow_height_m is not None and snow_height_m > 0 and weight_kg is not None:
-            snow_height_m /= 1000 # mm'yi metreye çevir
+        # Kar yüksekliği 0'dan büyükse hesaplama yap
+        snow_height_mm = processed_data.get("snow_height_mm")
+        current_weight_kg = processed_data.get("snow_weight_kg")
+        
+        if snow_height_mm and snow_height_mm > 0 and current_weight_kg is not None:
+            snow_height_m = snow_height_mm / 1000.0 # mm'yi metreye çevir
             
-            # Hacim (m³) = Ölçüm Alanı (m²) * Kar Yüksekliği (m)
             volume_m3 = settings.station.measurement_area_m2 * snow_height_m
             
-            # Yoğunluk (kg/m³) = Kütle (kg) / Hacim (m³)
             if volume_m3 > 0:
-                density = weight_kg / volume_m3
+                density = current_weight_kg / volume_m3
                 processed_data["snow_density_kg_m3"] = density
                 
-                # SWE (mm) = Kar Yüksekliği (mm) * (Kar Yoğunluğu / Su Yoğunluğu)
-                # Su Yoğunluğu ~ 1000 kg/m³
-                swe = processed_data["snow_height_mm"] * (density / 1000.0)
+                swe = snow_height_mm * (density / 1000.0)
                 processed_data["swe_mm"] = swe
 
         return processed_data
+

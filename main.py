@@ -37,20 +37,20 @@ def collection_cycle_task():
     console.print("   [dim]...veriler işleniyor ve hesaplanıyor...[/dim]")
     processed_data = data_processor.process(raw_data)
 
-    # Adım 3: İşlenmiş veriyi göster
+    # Adım 3: İşlenmiş veriyi veritabanına kaydet
+    storage_manager.save_reading(processed_data)
+
+    # Adım 4: İşlenmiş veriyi konsolda göster
     console.print("\n   [bold green]📊 İşlenmiş Veriler:[/bold green]")
+    # Bu kısım aynı kalıyor...
     console.print(f"   🌡️  Sıcaklık: {processed_data['temperature_c']:.2f}°C" if processed_data['temperature_c'] is not None else "   🌡️  Sıcaklık: N/A")
     console.print(f"   💧  Nem: {processed_data['humidity_percent']:.1f}%" if processed_data['humidity_percent'] is not None else "   💧  Nem: N/A")
-    console.print(f"   ❄️  Kar Yüksekliği: {processed_data['snow_height_mm']:.1f} mm" if processed_data['snow_height_mm'] is not None else "   ❄️  Kar Yüksekliği: N/A")
-    console.print(f"   ⚖️  Kar Ağırlığı: {processed_data['snow_weight_kg']:.2f} kg" if processed_data['snow_weight_kg'] is not None else "   ⚖️  Kar Ağırlığı: N/A")
-    console.print(f"   🧱  Kar Yoğunluğu: {processed_data['snow_density_kg_m3']:.1f} kg/m³" if processed_data['snow_density_kg_m3'] is not None else "   🧱  Kar Yoğunluğu: N/A")
-    console.print(f"   💧💧 Kar Su Eşdeğeri (SWE): {processed_data['swe_mm']:.1f} mm" if processed_data['swe_mm'] is not None else "   💧💧 Kar Su Eşdeğeri (SWE): N/A")
+    console.print(f"   ❄️  Kar Yüksekliği: {processed_data['snow_height_mm']:.1f} mm")
+    console.print(f"   ⚖️  Kar Ağırlığı: {processed_data['snow_weight_kg']:.2f} kg")
+    console.print(f"   🧱  Kar Yoğunluğu: {processed_data['snow_density_kg_m3']:.1f} kg/m³")
+    console.print(f"   💧💧 Kar Su Eşdeğeri (SWE): {processed_data['swe_mm']:.1f} mm")
     console.print(f"   ℹ️  Veri Kaynağı: {processed_data['data_source']}")
 
-    # >>> GELECEK ADIMLAR: Bu işlenmiş veriyi veritabanına kaydetmek <<<
-
-
-# ... (api_and_summary_task ve maintenance_and_retry_task şimdilik aynı kalabilir) ...
 def api_and_summary_task():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     console.print(f"🛰️  ({timestamp}) [cyan]Saatlik API Gönderim Görevi[/cyan] tetiklendi.")

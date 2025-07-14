@@ -83,5 +83,31 @@ class StorageManager:
         """
         return self._Session()
 
+    def save_reading(self, processed_data: dict):
+        """
+        İşlenmiş veri sözlüğünü alır ve 'readings' tablosuna kaydeder.
+        """
+        session = self.get_session()
+        try:
+            # Sözlükteki verileri Reading modelinin alanlarıyla eşleştir
+            new_reading = Reading(
+                timestamp=datetime.now(),
+                snow_height_mm=processed_data.get("snow_height_mm"),
+                snow_density_kg_m3=processed_data.get("snow_density_kg_m3"),
+                swe_mm=processed_data.get("swe_mm"),
+                temperature_c=processed_data.get("temperature_c"),
+                humidity_percent=processed_data.get("humidity_percent"),
+                data_source=processed_data.get("data_source", "unknown")
+            )
+            session.add(new_reading)
+            session.commit()
+            print("   [bold]💾 Veri başarıyla veritabanına kaydedildi.[/bold]")
+        except Exception as e:
+            print(f"   ❌ Veritabanına kaydetme hatası: {e}")
+            session.rollback() # Hata durumunda işlemi geri al
+        finally:
+            session.close() # Oturumu her zaman kapat
+
+
 # Ana veritabanı yöneticisi nesnesini oluştur
 storage_manager = StorageManager(engine)
