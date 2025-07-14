@@ -1,4 +1,3 @@
-# main.py
 import time
 import sys
 from datetime import datetime
@@ -7,7 +6,9 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from rich.console import Console
 from rich.panel import Panel
 
-from config import settings
+# Değişiklik burada:
+from app.config import settings
+from app.storage_manager import storage_manager # Yeni modülü import et
 
 # Konsol nesnesini oluştur
 console = Console()
