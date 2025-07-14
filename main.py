@@ -33,14 +33,14 @@ def calculate_summary(readings):
     temperatures = np.array([to_float_or_nan(r.temperature_c) for r in readings])
     humidities = np.array([to_float_or_nan(r.humidity_percent) for r in readings])
     distances = np.array([to_float_or_nan(r.distance_mm) for r in readings])
-    weights = np.array([to_float_or_nan(r.weight_kg) for r in readings])
+    weights = np.array([to_float_or_nan(r.snow_weight_kg) for r in readings]) # DÜZELTME YAPILDI
 
     api_payload = {
         "tarih": datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
         "sicaklik": int(round(np.nanmean(temperatures))) if not np.all(np.isnan(temperatures)) else 0,
         "nem": int(round(np.nanmean(humidities))) if not np.all(np.isnan(humidities)) else 0,
         "mesafe": int(round(np.nanmean(distances))) if not np.all(np.isnan(distances)) else 0,
-        "agirlik": int(round(np.nanmean(weights) * 1000)) if not np.all(np.isnan(weights)) else 0, # kg'ı grama çevir
+        "agirlik": int(round(np.nanmean(weights) * 1000)) if not np.all(np.isnan(weights)) else 0,
     }
     return api_payload
 

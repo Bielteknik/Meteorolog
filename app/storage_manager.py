@@ -1,31 +1,22 @@
 from sqlalchemy import (create_engine, Column, Integer, String, Float, 
-                        DateTime, MetaData, Table, inspect)
+                        DateTime, MetaData)
 from sqlalchemy.orm import sessionmaker, declarative_base
 from datetime import datetime, timedelta
 from rich.console import Console
 
-# Konsol nesnesini oluştur
 console = Console()
-
-# Veritabanı dosyasının adı
 DATABASE_FILE = "station_data.db"
 engine = create_engine(f"sqlite:///{DATABASE_FILE}", connect_args={"check_same_thread": False})
-
-# SQLAlchemy için temel sınıflar
 Base = declarative_base()
 metadata = MetaData()
 
-# --- Tablo Modellerini Tanımla ---
+# --- Tablo Modelleri Tanımla ---
 class Reading(Base):
     __tablename__ = 'readings'
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime, default=datetime.now)
-    
-    # Ham değerler
     distance_mm = Column(Float, nullable=True)
-    weight_kg = Column(Float, nullable=True)
-    
-    # Hesaplanmış değerler
+    snow_weight_kg = Column(Float, nullable=True)  # DÜZELTME YAPILDI
     snow_height_mm = Column(Float, nullable=True)
     snow_density_kg_m3 = Column(Float, nullable=True)
     swe_mm = Column(Float, nullable=True)
@@ -89,7 +80,7 @@ class StorageManager:
             new_reading = Reading(
                 timestamp=datetime.now(),
                 distance_mm=processed_data.get("distance_mm"),
-                weight_kg=processed_data.get("snow_weight_kg"),
+                snow_weight_kg=processed_data.get("snow_weight_kg"), # DÜZELTME YAPILDI
                 snow_height_mm=processed_data.get("snow_height_mm"),
                 snow_density_kg_m3=processed_data.get("snow_density_kg_m3"),
                 swe_mm=processed_data.get("swe_mm"),
