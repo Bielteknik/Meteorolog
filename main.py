@@ -11,41 +11,43 @@ from rich.panel import Panel
 from app.config import settings
 from app.storage_manager import storage_manager
 from app.sensor_manager import SensorManager # Yeni modül
+from app.data_processor import DataProcessor # Yeni import
 
 # Konsol ve sensör yöneticisi nesneleri
 console = Console()
 sensor_manager = SensorManager() # Program başında bir kez oluşturulur
+data_processor = DataProcessor() # Program başında bir kez oluşturulur
 
 # ==============================================================================
 # Görev Fonksiyonları
 # ==============================================================================
 
 def collection_cycle_task():
-    """
-    Ana veri toplama döngüsünü çalıştıran görev.
-    """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     console.print(
-        f"[bold yellow]🔄 ({timestamp}) [cyan]Ana Veri Toplama Döngüsü[/cyan] tetiklendi.[/bold yellow]"
+        f"\n[bold yellow]🔄 ({timestamp}) [cyan]Ana Veri Toplama Döngüsü[/cyan] tetiklendi.[/bold yellow]"
     )
     
     # Adım 1: Sensörlerden ham veriyi oku
     console.print("   [dim]...sensörlerden veri okunuyor...[/dim]")
     raw_data = sensor_manager.read_all_sensors()
-    
-    # Okunan ham veriyi göster
-    console.print("   [bold]Okunan Ham Veriler:[/bold]")
-    console.print(f"   📏 Yükseklik: {raw_data['height_raw']}")
-    console.print(f"   ⚖️ Ağırlık: {raw_data['weight_raw']}")
-    
-    # Sıcaklık/Nem verisini formatla
-    if raw_data['temp_hum_raw']:
-        temp, hum = raw_data['temp_hum_raw']
-        console.print(f"   🌡️ Sıcaklık/Nem: {temp:.2f}°C, {hum:.2f}%")
-    else:
-        console.print("   🌡️ Sıcaklık/Nem: Veri okunamadı.")
-    
-    # >>> GELECEK ADIMLAR: Veri işleme, kaydetme vb. buraya gelecek <<<
+    console.print(f"   [dim]Ham Veri: {raw_data}[/dim]")
+
+    # Adım 2: Ham veriyi işle
+    console.print("   [dim]...veriler işleniyor ve hesaplanıyor...[/dim]")
+    processed_data = data_processor.process(raw_data)
+
+    # Adım 3: İşlenmiş veriyi göster
+    console.print("\n   [bold green]📊 İşlenmiş Veriler:[/bold green]")
+    console.print(f"   🌡️  Sıcaklık: {processed_data['temperature_c']:.2f}°C" if processed_data['temperature_c'] is not None else "   🌡️  Sıcaklık: N/A")
+    console.print(f"   💧  Nem: {processed_data['humidity_percent']:.1f}%" if processed_data['humidity_percent'] is not None else "   💧  Nem: N/A")
+    console.print(f"   ❄️  Kar Yüksekliği: {processed_data['snow_height_mm']:.1f} mm" if processed_data['snow_height_mm'] is not None else "   ❄️  Kar Yüksekliği: N/A")
+    console.print(f"   ⚖️  Kar Ağırlığı: {processed_data['snow_weight_kg']:.2f} kg" if processed_data['snow_weight_kg'] is not None else "   ⚖️  Kar Ağırlığı: N/A")
+    console.print(f"   🧱  Kar Yoğunluğu: {processed_data['snow_density_kg_m3']:.1f} kg/m³" if processed_data['snow_density_kg_m3'] is not None else "   🧱  Kar Yoğunluğu: N/A")
+    console.print(f"   💧💧 Kar Su Eşdeğeri (SWE): {processed_data['swe_mm']:.1f} mm" if processed_data['swe_mm'] is not None else "   💧💧 Kar Su Eşdeğeri (SWE): N/A")
+    console.print(f"   ℹ️  Veri Kaynağı: {processed_data['data_source']}")
+
+    # >>> GELECEK ADIMLAR: Bu işlenmiş veriyi veritabanına kaydetmek <<<
 
 
 # ... (api_and_summary_task ve maintenance_and_retry_task şimdilik aynı kalabilir) ...
@@ -68,7 +70,7 @@ def main():
             Panel(
                 f"[bold]İstasyon ID:[/] [cyan]{settings.station.id}[/]\n"
                 f"[bold]Veri Toplama Aralığı:[/] [cyan]{settings.scheduler.collection_interval_minutes} dakika[/]",
-                title="[bold green]❄️ Akıllı Kar İstasyonu Başlatıldı ❄️[/bold green]",
+                title="[bold green]❄️  Akıllı Kar İstasyonu Başlatıldı ❄️[/bold green]",
                 border_style="green"
             )
         )
