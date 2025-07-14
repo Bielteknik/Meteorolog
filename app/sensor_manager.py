@@ -118,11 +118,13 @@ class SensorManager:
                 self.i2c_bus.close()
             self.i2c_bus = None
 
-    def read_all_sensors(self) -> Dict[str, Optional[str]]:
+    def read_all_sensors(self) -> Dict[str, Optional[str | Tuple[float, float]]]:
         """
         Bağlı olan tüm sensörlerden ham veri okur.
         Döndürdüğü veri: {'height_raw': 'R3650', 'weight_raw': '=12.34', 'temp_hum_raw': (21.5, 45.8)}
         """
+        # Python 3.9 ve altı için: Dict[str, Optional[Union[str, Tuple[float, float]]]]
+        
         raw_data = {
             "height_raw": None,
             "weight_raw": None,
@@ -134,9 +136,16 @@ class SensorManager:
             try:
                 # Buffer'ı temizle ve taze veri bekle
                 self.height_ser.reset_input_buffer()
-                line = self.height_ser.readline().decode('utf-8', errors='ignore').strip()
-                if line.startswith('R'):
-                    raw_data["height_raw"] = line
+                time.sleep(0.1) # Kısa bir bekleme
+                
+                #readline() yerine belirli bir süre oku, en son gelen geçerli satırı al
+                buffer = self.height_ser.read_until(expected=b'\n', size=20).decode('utf-8', errors='ignore').strip()
+                lines = buffer.strip().split('\n')
+                for line in reversed(lines):
+                    if line.startswith('R'):
+                        raw_data["height_raw"] = line.strip()
+                        break
+
             except Exception as e:
                 print(f"  ❌ Yükseklik sensörü okuma hatası: {e}")
                 self.is_height_ok = False # Sorun varsa durumu güncelle
@@ -145,12 +154,17 @@ class SensorManager:
         if self.is_weight_ok and self.weight_ser:
             try:
                 self.weight_ser.reset_input_buffer()
-                line = self.weight_ser.readline().decode('utf-8', errors='ignore').strip()
-                # Ağırlık verisi formatı: "=    0.00C0". Regex ile sayıyı alalım.
-                match = re.search(r'=\s*(-?\d+\.\d+)', line)
-                if match:
-                    # Sadece "=12.34" formatında saklayalım
-                    raw_data["weight_raw"] = f"={match.group(1)}"
+                time.sleep(0.1)
+
+                #readline() yerine belirli bir süre oku, en son gelen geçerli satırı al
+                buffer = self.weight_ser.read_until(expected=b'\n', size=50).decode('utf-8', errors='ignore').strip()
+                lines = buffer.strip().split('\n')
+                for line in reversed(lines): # En taze veri genellikle en sondadır
+                    match = re.search(r'=\s*(-?\d+\.\d+)', line)
+                    if match:
+                        raw_data["weight_raw"] = f"={match.group(1)}"
+                        break # İlk eşleşmeyi bulduğumuzda döngüden çık
+
             except Exception as e:
                 print(f"  ❌ Ağırlık sensörü okuma hatası: {e}")
                 self.is_weight_ok = False
@@ -171,6 +185,9 @@ class SensorManager:
                 # Ham veriyi sıcaklık ve neme dönüştür
                 temp = -45 + (175 * (data[0] * 256 + data[1])) / (2**16 - 1)
                 humidity = (100 * (data[3] * 256 + data[4])) / (2**16 - 1)
+                
+                # Checksum doğrulaması (opsiyonel ama önerilir) yapılabilir
+                
                 raw_data["temp_hum_raw"] = (temp, humidity)
             except Exception as e:
                 print(f"  ❌ Sıcaklık/Nem sensörü okuma hatası: {e}")
