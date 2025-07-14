@@ -11,10 +11,8 @@ from typing import Optional
 # Artık tüm sırlarımızı tek bir sınıfta topluyoruz.
 class Secrets(BaseSettings):
     # API Anahtarları
-    # api_key'i Optional yaptık ve varsayılan değerini None olarak belirledik.
-    api_key: Optional[str] = Field(None, alias='API_KEY')
-    openweathermap_key: str = Field(..., alias='OPENWEATHERMAP_KEY')
-    
+    # api_key'i Optional yaptık ve varsayılan değerini None olarak belirledik.    
+    openweathermap_key: str = Field(..., alias='OPENWEATHERMAP_KEY')    
     # E-posta Şifresi
     password: str = Field(..., alias='EMAIL_PASSWORD')
     
