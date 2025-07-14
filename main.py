@@ -1,4 +1,3 @@
-# main.py
 import sys
 import json
 import numpy as np
@@ -64,9 +63,16 @@ def collection_cycle_task():
     storage_manager.save_reading(processed_data)
     anomaly_detector.check(processed_data)
     
-    # İşlenmiş veriyi konsolda göster
+    # EKSİK OLAN KISIM BURADA EKLENDİ
     console.print("\n   [green]📊 İşlenmiş Veriler:[/green]")
-    # ... (konsol çıktıları aynı, isteğe bağlı eklenebilir)
+    console.print(f"   🌡️  Sıcaklık: {processed_data['temperature_c']:.2f}°C" if processed_data['temperature_c'] is not None else "   🌡️  Sıcaklık: N/A")
+    console.print(f"   💧  Nem: {processed_data['humidity_percent']:.1f}%" if processed_data['humidity_percent'] is not None else "   💧  Nem: N/A")
+    console.print(f"   ❄️  Kar Yüksekliği: {processed_data['snow_height_mm']:.1f} mm")
+    console.print(f"   ⚖️  Kar Ağırlığı: {processed_data['snow_weight_kg']:.2f} kg")
+    console.print(f"   🧱  Kar Yoğunluğu: {processed_data['snow_density_kg_m3']:.1f} kg/m³")
+    console.print(f"   💧💧 Kar Su Eşdeğeri (SWE): {processed_data['swe_mm']:.1f} mm")
+    console.print(f"   ℹ️  Veri Kaynağı: {processed_data['data_source']}")
+
 
 def api_and_summary_task():
     """Saatlik özet alıp API'ye gönderen görev."""
@@ -127,9 +133,12 @@ def main():
         console.print(Panel(f"[bold]İstasyon ID:[/] [cyan]{settings.station.id}[/]", title="[bold green]❄️ Akıllı Kar İstasyonu Başlatıldı ❄️[/bold green]"))
         
         scheduler = BlockingScheduler(timezone="Europe/Istanbul")
-        scheduler.add_job(collection_cycle_task, 'interval', minutes=settings.scheduler.collection_interval_minutes, id='collection_task')
+        
+        # JITTER EKLEMESİ: Görevlerin tam olarak aynı anda başlamasını engeller
+        # Her görev 0-15 saniye arası rastgele bir gecikmeyle başlar.
+        scheduler.add_job(collection_cycle_task, 'interval', minutes=settings.scheduler.collection_interval_minutes, id='collection_task', jitter=15)
         scheduler.add_job(api_and_summary_task, 'cron', hour=settings.scheduler.api_summary_hour, minute=1, id='api_task')
-        scheduler.add_job(maintenance_and_retry_task, 'interval', minutes=settings.scheduler.maintenance_interval_minutes, id='maintenance_task')
+        scheduler.add_job(maintenance_and_retry_task, 'interval', minutes=settings.scheduler.maintenance_interval_minutes, id='maintenance_task', jitter=15)
         scheduler.add_job(daily_report_task, 'cron', hour=23, minute=55, id='report_task')
         
         console.print("\n[yellow]⏰ Zamanlayıcı kuruldu. İlk döngünün tetiklenmesi bekleniyor...[/yellow]")
