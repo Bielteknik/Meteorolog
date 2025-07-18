@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raporlar - METEOROLOG</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Ana dashboard ile aynı stil kodları */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap');
+        :root {
+            --bg-dark: #121212; --sidebar-bg: #1a1a1a; --card-bg: #242424;
+            --primary-color: #00aaff; --text-color: #e0e0e0; --text-muted: #888888;
+            --border-color: #333333;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-dark); color: var(--text-color); margin: 0; display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 25px; flex-shrink: 0; }
+        .sidebar-header h1 { margin: 0 0 40px 0; font-size: 1.8em; text-align: center; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .sidebar-nav ul { list-style: none; padding: 0; }
+        .sidebar-nav li a { display: flex; align-items: center; padding: 15px; border-radius: 8px; text-decoration: none; color: var(--text-muted); font-weight: 500; margin-bottom: 5px; transition: all 0.3s; }
+        .sidebar-nav li a i { width: 30px; font-size: 1.1em; }
+        .sidebar-nav li a:hover { background-color: var(--card-bg); color: var(--text-color); }
+        .sidebar-nav li a.active { background-color: var(--primary-color); color: #fff; font-weight: 700; }
+        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; }
+        .main-header h2 { margin: 0 0 30px 0; font-size: 1.8em; font-weight: 500; }
+
+        /* Rapor Listesi */
+        .reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .report-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .report-icon { font-size: 2.5em; color: var(--primary-color); }
+        .report-details { flex-grow: 1; }
+        .report-details h3 { margin: 0 0 5px 0; font-size: 1.1em; }
+        .report-details p { margin: 0; font-size: 0.9em; color: var(--text-muted); }
+        .report-download-btn { background-color: var(--border-color); color: var(--text-color); border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 1.1em; transition: background-color 0.3s; }
+        .report-download-btn:hover { background-color: var(--primary-color); }
+
+        @media (max-width: 992px) { body { flex-direction: column; } .sidebar { width: 100%; height: auto; border-bottom: 1px solid var(--border-color); } }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header"><h1><i class="fa-solid fa-snowflake"></i> METEOROLOG</h1></div>
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="dashboard.html"><i class="fa-solid fa-chart-line"></i> Kontrol Paneli</a></li>
+                <li><a href="anomalies.html"><i class="fa-solid fa-triangle-exclamation"></i> Anomali Kayıtları</a></li>
+                <li><a href="#" class="active"><i class="fa-solid fa-file-alt"></i> Raporlar</a></li>
+                <li><a href="settings.html"><i class="fa-solid fa-cog"></i> Ayarlar</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="main-header"><h2>Oluşturulan Günlük Raporlar</h2></header>
+        <div class="reports-grid">
+            <div class="report-card">
+                <i class="fa-solid fa-file-markdown report-icon"></i>
+                <div class="report-details">
+                    <h3>Z_Report_2025-07-15.md</h3>
+                    <p>Oluşturma: 15.07.2025 23:55 | Boyut: 15 KB</p>
+                </div>
+                <a href="#" download><button class="report-download-btn"><i class="fa-solid fa-download"></i></button></a>
+            </div>
+            <div class="report-card">
+                <i class="fa-solid fa-file-markdown report-icon"></i>
+                <div class="report-details">
+                    <h3>Z_Report_2025-07-14.md</h3>
+                    <p>Oluşturma: 14.07.2025 23:55 | Boyut: 12 KB</p>
+                </div>
+                <a href="#" download><button class="report-download-btn"><i class="fa-solid fa-download"></i></button></a>
+            </div>
+            <div class="report-card">
+                <i class="fa-solid fa-file-markdown report-icon"></i>
+                <div class="report-details">
+                    <h3>Z_Report_2025-07-13.md</h3>
+                    <p>Oluşturma: 13.07.2025 23:55 | Boyut: 14 KB</p>
+                </div>
+                <a href="#" download><button class="report-download-btn"><i class="fa-solid fa-download"></i></button></a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
