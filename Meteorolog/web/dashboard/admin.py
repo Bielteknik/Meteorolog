@@ -23,8 +23,9 @@ class ReadingAdmin(ReadOnlyAdmin):
 
 @admin.register(AnomalyLog)
 class AnomalyLogAdmin(ReadOnlyAdmin):
-    list_display = ('timestamp', 'sensor', 'anomaly_type', 'value')
-    list_filter = ('timestamp', 'sensor', 'anomaly_type')
+    # 'sensor' alanı hem list_display'den hem de list_filter'dan kaldırıldı.
+    list_display = ('timestamp', 'anomaly_type', 'value')
+    list_filter = ('timestamp', 'anomaly_type')
     search_fields = ('details', 'value')
     date_hierarchy = 'timestamp'
 

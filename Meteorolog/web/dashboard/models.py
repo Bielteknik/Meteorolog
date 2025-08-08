@@ -1,5 +1,3 @@
-# web/dashboard/models.py (Temizlenmiş ve Düzenlenmiş Hali)
-
 from django.db import models
 
 # Django'nun bu tabloları yönetmesini istemediğimizi belirtmek için
@@ -21,7 +19,7 @@ class Reading(models.Model):
     class Meta:
         managed = False
         db_table = 'readings'
-        ordering = ['-timestamp'] # Kayıtları en yeniden en eskiye doğru sırala
+        ordering = ['-timestamp'] 
 
 class ApiQueue(models.Model):
     id = models.AutoField(primary_key=True)
@@ -36,7 +34,7 @@ class ApiQueue(models.Model):
 class AnomalyLog(models.Model):
     id = models.AutoField(primary_key=True)
     timestamp = models.DateTimeField()
-    sensor = models.TextField()
+    # sensor = models.TextField()  # <-- BU SATIR VERİTABANINDA OLMADIĞI İÇİN KALDIRILDI
     anomaly_type = models.TextField()
     value = models.TextField(blank=True, null=True)
     details = models.TextField(blank=True, null=True)

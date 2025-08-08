@@ -17,56 +17,82 @@
         gap: 20px;
     }
 
-    .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
     .gauge-card, .info-card { background-color: var(--card-bg); padding: 20px; border-radius: 12px; }
-    .gauge-card { text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
-    .gauge-title { font-size: 0.9em; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; }
-    .gauge-value-display { font-size: 2.2em; font-weight: 700; margin: 15px 0; }
-    .gauge-value-display .unit { font-size: 0.5em; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
-    .gauge-visualizer { position: relative; width: 120px; height: 120px; margin: 0 auto; border-radius: 50%; background: conic-gradient(var(--primary-color) 0deg, var(--border-color) 0deg); display: flex; align-items: center; justify-content: center; transition: background 0.5s; }
-    .gauge-visualizer::before { content: ''; position: absolute; width: 80%; height: 80%; background: var(--card-bg); border-radius: 50%; }
     .info-card h3 { margin: 0 0 15px 0; font-size: 1em; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
     .info-card .value { font-size: 2.5em; font-weight: 700; }
     .info-card .unit { font-size: 0.5em; color: var(--text-muted); margin-left: 5px; }
     
+    /* --- KAMERA KARTI YENİ STİLLERİ --- */
     .camera-card {
         grid-column: 1 / -1; 
         background-color: var(--card-bg);
         padding: 20px;
         border-radius: 12px;
+        display: flex;
+        flex-direction: column;
     }
-    .camera-card img {
+    .camera-display {
+        width: 100%;
+        min-height: 480px; /* Ortalama video yüksekliği, çökmesini önler */
+        background-color: #000;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+    }
+    .camera-placeholder {
+        color: var(--text-muted);
+        text-align: center;
+    }
+    .camera-placeholder i {
+        font-size: 4em;
+        margin-bottom: 20px;
+    }
+    #video-stream {
         width: 100%;
         height: auto;
-        border-radius: 8px;
-        background-color: #000;
+        display: none; /* Başlangıçta gizli */
     }
     .camera-actions {
         margin-top: 15px;
         display: flex;
-        justify-content: space-between;
+        justify-content: center; /* Butonları ortala */
         align-items: center;
+        gap: 15px;
     }
-    .snapshot-btn {
+    .action-btn {
         background-color: var(--primary-color);
         color: #fff;
         border: none;
-        padding: 10px 20px;
-        border-radius: 6px;
+        padding: 12px 25px;
+        border-radius: 8px;
         cursor: pointer;
         font-weight: 700;
+        font-size: 1em;
         transition: background-color 0.3s;
     }
-    .snapshot-btn:hover { background-color: #0077b3; }
-    .snapshot-btn:disabled { background-color: var(--text-muted); cursor: not-allowed; }
-    #snapshot-status { font-size: 0.9em; color: var(--text-muted); }
-    #snapshot-status a { color: var(--success-color); text-decoration: none; }
+    .action-btn:hover { background-color: #0077b3; }
+    .action-btn.secondary { background-color: var(--border-color); }
+    .action-btn.secondary:hover { background-color: #444; }
+    .action-btn:disabled { background-color: var(--text-muted); cursor: not-allowed; }
+    
+    #live-controls, #snapshot-mode-controls {
+        display: none; /* Başlangıçta gizli */
+    }
+    #snapshot-status { 
+        font-size: 0.9em; 
+        color: var(--text-muted); 
+        flex-grow: 1; 
+        text-align: right;
+    }
+    #snapshot-status a { color: var(--success-color); text-decoration: none; font-weight: bold; }
 
+    /* Diğer kartlar için stiller (değişmedi) */
     .table-container { background-color: var(--card-bg); padding: 25px; border-radius: 12px; overflow-x: auto; grid-column: 1 / -1;}
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
-    thead th { font-size: 0.9em; color: var(--text-muted); font-weight: 500; text-transform: uppercase; }
-    tbody tr:hover { background-color: #2c2c2c; }
 </style>
 {% endblock %}
 
@@ -81,32 +107,36 @@
 
 <section class="dashboard-grid">
 
+    <!-- KAMERA KARTI (Yeniden Yapılandırıldı) -->
     <div class="camera-card">
-        <h2 class="section-title" style="margin-top: 0;"><i class="fa-solid fa-camera"></i> Canlı Görüntü</h2>
-        <img src="{% url 'video_feed' %}" alt="Canlı Kamera Akışı">
+        <h2 class="section-title" style="margin-top: 0;"><i class="fa-solid fa-camera"></i> Kamera Kontrolü</h2>
+        <div class="camera-display">
+            <!-- Başlangıçta gösterilecek placeholder -->
+            <div class="camera-placeholder" id="camera-placeholder">
+                <i class="fa-solid fa-video-slash"></i>
+                <p>Canlı izleme başlatılmadı.</p>
+            </div>
+            <!-- Canlı yayın burada gösterilecek -->
+            <img src="" id="video-stream" alt="Kamera Akışı">
+        </div>
         <div class="camera-actions">
-            <button id="snapshot-btn" class="snapshot-btn"><i class="fa-solid fa-camera-retro"></i> Anlık Görüntü Al</button>
+            <!-- Başlangıç Butonları -->
+            <div id="initial-controls">
+                <button class="action-btn" id="start-stream-btn"><i class="fa-solid fa-play"></i> Canlı İzle</button>
+                <button class="action-btn secondary" id="take-photo-btn"><i class="fa-solid fa-camera-retro"></i> Fotoğraf Çek</button>
+            </div>
+            <!-- Canlı İzleme Butonları -->
+            <div id="live-controls">
+                <button class="action-btn" id="snapshot-live-btn"><i class="fa-solid fa-camera"></i> Anlık Görüntü Al</button>
+                <button class="action-btn secondary" id="stop-stream-btn"><i class="fa-solid fa-stop"></i> Durdur</button>
+            </div>
+            <!-- Durum mesajları için alan -->
             <div id="snapshot-status"></div>
         </div>
     </div>
 
+    <!-- Diğer kartlar aynı kalıyor -->
     {% if latest_reading %}
-        <div class="gauge-card">
-            <div class="gauge-title"><i class="fa-solid fa-temperature-low"></i> Sıcaklık</div>
-            <div class="gauge-value-display"><span>{{ latest_reading.temperature_c|floatformat:1 }}</span><span class="unit">°C</span></div>
-            <div class="gauge-visualizer" id="temp-gauge"></div>
-        </div>
-        <div class="gauge-card">
-            <div class="gauge-title"><i class="fa-solid fa-water"></i> Nem</div>
-            <div class="gauge-value-display"><span>{{ latest_reading.humidity_percent|floatformat:0 }}</span><span class="unit">%</span></div>
-            <div class="gauge-visualizer" id="hum-gauge"></div>
-        </div>
-        <div class="gauge-card">
-            <div class="gauge-title"><i class="fa-solid fa-weight-scale"></i> Ağırlık</div>
-            <div class="gauge-value-display"><span>{{ latest_reading.snow_weight_kg|floatformat:1 }}</span><span class="unit">kg</span></div>
-            <div class="gauge-visualizer" id="weight-gauge"></div>
-        </div>
-
         <div class="info-card">
             <h3><i class="fa-solid fa-ruler-vertical"></i> Kar Yüksekliği</h3>
             <div class="value">{{ latest_reading.snow_height_mm|floatformat:1 }} <span class="unit">mm</span></div>
@@ -143,62 +173,114 @@
             </table>
         </div>
     {% else %}
-        <div class="info-card" style="grid-column: 1 / -1;"><h3>Veri Bekleniyor...</h3><p>Sistem henüz bir ölçüm kaydetmedi. Lütfen bir sonraki veri toplama döngüsünü bekleyin.</p></div>
+        <div class="info-card" style="grid-column: 1 / -1;"><h3>Veri Bekleniyor...</h3><p>Sistem henüz bir ölçüm kaydetmedi.</p></div>
     {% endif %}
 </section>
 {% endblock %}
 
 {% block javascript %}
-{% if latest_reading_json %}
-    {{ latest_reading_json|json_script:"latest-reading-data" }}
-{% endif %}
 <script>
-    function updateGauge(gaugeId, value, min, max) {
-        const gaugeElement = document.getElementById(gaugeId);
-        if (!gaugeElement || value === null) return;
-        const percentage = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-        let color = 'var(--primary-color)';
-        if (gaugeId === 'temp-gauge' && value > 0) {
-            color = 'var(--warning-color)';
-        }
-        gaugeElement.style.background = `conic-gradient(${color} ${percentage * 3.6}deg, var(--border-color) 0deg)`;
-    }
+document.addEventListener('DOMContentLoaded', () => {
+    // HTML elementlerini seç
+    const cameraPlaceholder = document.getElementById('camera-placeholder');
+    const videoStream = document.getElementById('video-stream');
+    const initialControls = document.getElementById('initial-controls');
+    const liveControls = document.getElementById('live-controls');
+    const startStreamBtn = document.getElementById('start-stream-btn');
+    const stopStreamBtn = document.getElementById('stop-stream-btn');
+    const takePhotoBtn = document.getElementById('take-photo-btn');
+    const snapshotLiveBtn = document.getElementById('snapshot-live-btn');
+    const snapshotStatus = document.getElementById('snapshot-status');
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const dataElement = document.getElementById('latest-reading-data');
-        if (dataElement) {
-            const reading = JSON.parse(dataElement.textContent);
-            updateGauge('temp-gauge', reading.temperature_c, -40, 40);
-            updateGauge('hum-gauge', reading.humidity_percent, 0, 100);
-            updateGauge('weight-gauge', reading.snow_weight_kg, 0, 100);
-        }
+    const videoFeedUrl = "{% url 'video_feed' %}";
+    const snapshotUrl = "{% url 'snapshot' %}";
 
-        const snapshotBtn = document.getElementById('snapshot-btn');
-        const snapshotStatus = document.getElementById('snapshot-status');
+    // --- OLAY DİNLEYİCİLER ---
 
-        snapshotBtn.addEventListener('click', () => {
-            snapshotBtn.disabled = true;
-            snapshotStatus.innerHTML = 'Görüntü alınıyor...';
-
-            fetch("{% url 'snapshot' %}")
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'ok') {
-                        snapshotStatus.innerHTML = `Başarılı! Yükseklik: ${data.height}. <a href="${data.url}" target="_blank">Görüntüle</a>`;
-                    } else {
-                        snapshotStatus.textContent = `Hata: ${data.message}`;
-                    }
-                })
-                .catch(error => {
-                    console.error('Snapshot error:', error);
-                    snapshotStatus.textContent = 'İstek gönderilirken bir hata oluştu.';
-                })
-                .finally(() => {
-                    setTimeout(() => {
-                        snapshotBtn.disabled = false;
-                    }, 3000);
-                });
-        });
+    // "Canlı İzle" butonuna tıklandığında
+    startStreamBtn.addEventListener('click', () => {
+        cameraPlaceholder.style.display = 'none';
+        videoStream.src = videoFeedUrl; // Akışı başlat
+        videoStream.style.display = 'block';
+        
+        initialControls.style.display = 'none';
+        liveControls.style.display = 'flex';
+        snapshotStatus.innerHTML = '';
     });
+
+    // "Durdur" butonuna tıklandığında
+    stopStreamBtn.addEventListener('click', () => {
+        videoStream.src = ''; // Akışı durdur (çok önemli!)
+        videoStream.style.display = 'none';
+        cameraPlaceholder.style.display = 'flex';
+
+        liveControls.style.display = 'none';
+        initialControls.style.display = 'block';
+    });
+
+    // "Fotoğraf Çek" (başlangıçtaki) butona tıklandığında
+    takePhotoBtn.addEventListener('click', () => {
+        // Bu buton da aynı snapshot fonksiyonunu tetikleyecek
+        handleSnapshot(takePhotoBtn);
+    });
+
+    // "Anlık Görüntü Al" (canlı izlemedeki) butona tıklandığında
+    snapshotLiveBtn.addEventListener('click', () => {
+        handleSnapshot(snapshotLiveBtn);
+    });
+
+    // --- YARDIMCI FONKSİYON ---
+
+    // Fotoğraf çekme işlemini yöneten fonksiyon
+    function handleSnapshot(button) {
+        button.disabled = true;
+        snapshotStatus.style.color = 'var(--text-muted)';
+        snapshotStatus.innerHTML = 'İşleniyor...';
+
+        fetch(snapshotUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Sunucu hatası: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'ok') {
+                    snapshotStatus.style.color = 'var(--success-color)';
+                    snapshotStatus.innerHTML = `✓ Başarılı! (<a href="${data.url}" target="_blank">Görüntüle</a>)`;
+                    
+                    // Eğer canlı yayın açık değilse, çekilen fotoğrafı göster
+                    if (videoStream.style.display === 'none') {
+                        cameraPlaceholder.style.display = 'none';
+                        videoStream.src = data.url; // Çekilen statik fotoğrafı göster
+                        videoStream.style.display = 'block';
+                        // 3 saniye sonra başlangıç ekranına dön
+                        setTimeout(() => {
+                           if (liveControls.style.display === 'none') { // hala canlı izlemede değilsek
+                                videoStream.style.display = 'none';
+                                videoStream.src = '';
+                                cameraPlaceholder.style.display = 'flex';
+                           }
+                        }, 5000);
+                    }
+                } else {
+                    throw new Error(data.message || 'Bilinmeyen bir hata oluştu.');
+                }
+            })
+            .catch(error => {
+                console.error('Snapshot error:', error);
+                snapshotStatus.style.color = 'var(--danger-color)';
+                snapshotStatus.textContent = '✗ Hata: ' + error.message;
+            })
+            .finally(() => {
+                // Butonu bir süre sonra tekrar aktif et
+                setTimeout(() => {
+                    button.disabled = false;
+                    // Durum mesajını 5 saniye sonra temizle
+                    setTimeout(() => { snapshotStatus.innerHTML = ''; }, 5000);
+                }, 2000);
+            });
+    }
+});
 </script>
 {% endblock %}

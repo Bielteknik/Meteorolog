@@ -31,31 +31,34 @@
         <label for="anomaly-type">Anomali Tipi</label>
         <select id="anomaly-type"><option value="">Tümü</option><option value="frozen">Donmuş Sensör</option><option value="spike">Ani Sıçrama</option></select>
     </div>
-    <div class="filter-group"><label for="sensor-type">Sensör</label>
-        <select id="sensor-type"><option value="">Tümü</option><option value="temp">Sıcaklık</option><option value="weight">Ağırlık</option></select>
-    </div>
+    <!-- Sensör filtresi de kaldırıldı -->
     <div class="filter-group"><button>Filtrele</button></div>
 </div>
 
 <div class="table-container">
     <table>
         <thead>
-            <tr><th>Tarih/Saat</th><th>Sensör</th><th>Anomali Tipi</th><th>Değer</th><th>Açıklama</th></tr>
+            <tr>
+                <th>Tarih/Saat</th>
+                <!-- <th>Sensör</th> <-- Sütun başlığı kaldırıldı -->
+                <th>Anomali Tipi</th>
+                <th>Değer</th>
+                <th>Açıklama</th>
+            </tr>
         </thead>
         <tbody>
             {% for log in anomaly_logs %}
             <tr>
                 <td>{{ log.timestamp|date:"d.m.Y H:i:s" }}</td>
-                <td>{{ log.sensor }}</td>
+                <!-- <td>{{ log.sensor }}</td> <-- Sütun verisi kaldırıldı -->
                 <td>
-                    {# Anomali tipine göre renkli etiket ataması yapılabilir #}
                     <span class="severity-badge info">{{ log.anomaly_type }}</span>
                 </td>
                 <td>{{ log.value }}</td>
                 <td>{{ log.details }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" style="text-align: center;">Gösterilecek anomali kaydı bulunamadı.</td></tr>
+            <tr><td colspan="4" style="text-align: center;">Gösterilecek anomali kaydı bulunamadı.</td></tr>
             {% endfor %}
         </tbody>
     </table>
