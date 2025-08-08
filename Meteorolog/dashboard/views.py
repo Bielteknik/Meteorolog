@@ -26,6 +26,8 @@ def get_rtsp_url():
         return None
 
 def dashboard_view(request):
+    # HATA DÜZELTİLDİ: Olmayan 'get_common_context' fonksiyonu çağrısı kaldırıldı.
+    # Context sözlüğü doğrudan burada oluşturuluyor.
     context = {
         'latest_reading': Reading.objects.first(),
         'recent_readings': Reading.objects.all()[:5],
@@ -47,13 +49,16 @@ def kar_seviyesini_bul_ve_ciz(frame, kalibrasyon):
     if roi_y1 >= roi_y2: return frame, 0.0
     cetvel_bolgesi = frame[roi_y1:roi_y2, max(0, x_orta - 10):min(frame.shape[1], x_orta + 10)]
     blurred_roi = cv2.GaussianBlur(cv2.cvtColor(cetvel_bolgesi, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+    
+    # Gradient tabanlı kenar tespiti (daha sağlam bir yöntem)
     y_roi = np.argmax(np.mean(np.gradient(blurred_roi.astype(float), axis=0), axis=1))
+    
     kar_seviyesi_y = roi_y1 + y_roi
     kar_yuksekligi_pixel = max(0, alt_nokta[1] - kar_seviyesi_y)
     kar_yuksekligi_cm = kar_yuksekligi_pixel * kalibrasyon['cm_per_pixel']
     cv2.line(frame, alt_nokta, ust_nokta, (255, 0, 0), 2)
     cv2.line(frame, (x_orta - 25, kar_seviyesi_y), (x_orta + 25, kar_seviyesi_y), (0, 255, 255), 2)
-    cv2.putText(frame, f"Yukseklik: {kar_yuksekligi_cm:.1f} cm", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    cv2.putText(frame, f"Yukseklik: {kar_yuksekligi_cm:.1f} cm", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
     return frame, kar_yuksekligi_cm
 
 def stream_camera():
@@ -67,6 +72,14 @@ def stream_camera():
         return
 
     cap = cv2.VideoCapture(RTSP_URL, cv2.CAP_FFMPEG)
+    if not cap.isOpened():
+        hata_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(hata_frame, "Kamera Baglantisi Yok", (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        _, buffer = cv2.imencode('.jpg', hata_frame)
+        yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        cap.release()
+        return
+
     while True:
         with lock: ret, frame = cap.read()
         if not ret: time.sleep(1); continue
@@ -99,41 +112,3 @@ def snapshot_view(request):
     file_url = os.path.join(settings.MEDIA_URL, 'snapshots', filename).replace("\\", "/")
 
     return JsonResponse({'status': 'ok', 'message': f'Görüntü kaydedildi: {filename}', 'url': file_url, 'height': f'{kar_yuksekligi:.1f} cm'})
-
-# --- Eski View Fonksiyonları (Aynı kalıyor) ---
-
-def dashboard_view(request):
-    context = get_common_context()
-    context.update({
-        'active_page': 'dashboard',
-        'latest_reading': Reading.objects.first(),
-        'recent_readings': Reading.objects.all()[:5],
-    })
-    return render(request, 'dashboard/dashboard.html', context)
-
-def anomalies_view(request):
-    context = get_common_context()
-    context.update({
-        'active_page': 'anomalies',
-        'anomaly_logs': AnomalyLog.objects.all()[:50]
-    })
-    return render(request, 'dashboard/anomalies.html', context)
-
-def reports_view(request):
-    dummy_reports = [
-        {'name': 'Z_Report_2025-07-15.md', 'date': '15.07.2025 23:55', 'size': '15 KB'},
-        {'name': 'Z_Report_2025-07-14.md', 'date': '14.07.2025 23:55', 'size': '12 KB'},
-    ]
-    context = get_common_context()
-    context.update({
-        'active_page': 'reports',
-        'reports': dummy_reports
-    })
-    return render(request, 'dashboard/reports.html', context)
-
-def settings_view(request):
-    context = get_common_context()
-    context.update({
-        'active_page': 'settings'
-    })
-    return render(request, 'dashboard/settings.html', context)
