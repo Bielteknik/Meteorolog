@@ -17,7 +17,6 @@ class Reading(models.Model):
     data_source = models.TextField()
 
     class Meta:
-        managed = False
         db_table = 'readings'
         ordering = ['-timestamp']
 
@@ -28,7 +27,6 @@ class ApiQueue(models.Model):
     attempts = models.IntegerField()
 
     class Meta:
-        managed = False
         db_table = 'api_queue'
 
 class AnomalyLog(models.Model):
@@ -36,14 +34,8 @@ class AnomalyLog(models.Model):
     timestamp = models.DateTimeField()
     anomaly_type = models.TextField()
     details = models.TextField(blank=True, null=True)
-    
-    # NOT: 'sensor' ve 'value' alanları, veritabanında 'no such column' hatası
-    # verdiği için kaldırılmıştır. Bu, Django modelinin veritabanı şemasıyla
-    # uyumlu olmasını sağlar. Eğer bu alanlar veritabanına eklenirse,
-    # buraya da tekrar eklenmelidir.
 
     class Meta:
-        managed = False
         db_table = 'anomaly_logs'
         ordering = ['-timestamp']
 
@@ -54,7 +46,6 @@ class EmailLog(models.Model):
     subject = models.TextField()
 
     class Meta:
-        managed = False
         db_table = 'email_logs'
         ordering = ['-timestamp']
 
@@ -67,6 +58,5 @@ class SystemHealthLog(models.Model):
     disk_usage_percent = models.FloatField(blank=True, null=True)
 
     class Meta:
-        managed = False
         db_table = 'system_health_logs'
         ordering = ['-timestamp']

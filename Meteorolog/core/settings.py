@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-0=7!9gip_g$e@gi_h2*1n%ra9ctqr^4-k6bic^)pvr!&$w8d_b'
+SECRET_KEY = 'django-insecure--ef4x#lvh*du&_=bkdz&nl=-y$8iq4z44d$6ufal5obynitsu9'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -26,7 +26,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'dashboard',
+    # Bizim uygulamamız
+    'dashboard.apps.DashboardConfig',
+    # Üçüncü parti kütüphaneler
+    'rest_framework',
+    'rest_framework.authtoken',    
 ]
 
 MIDDLEWARE = [
@@ -39,15 +43,17 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'snow.urls'
+ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        # Ana dizinde bir 'templates' klasörü oluşturacağımızı belirtiyoruz
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
@@ -56,7 +62,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'snow.wsgi.application'
+WSGI_APPLICATION = 'core.wsgi.application'
 
 
 # Database
@@ -65,11 +71,7 @@ WSGI_APPLICATION = 'snow.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        #'NAME': BASE_DIR / 'db.sqlite3',
-        'NAME': BASE_DIR.parent / 'station_data.db',
-        'OPTIONS': {
-            'timeout': 20,  # 20 saniye bekle
-        },
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -93,30 +95,23 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
-
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
+# Uluslararasılaştırma
+LANGUAGE_CODE = 'tr-tr' # Dili Türkçe yapalım
+TIME_ZONE = 'Europe/Istanbul'
 USE_I18N = True
-
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
+# Statik ve Medya dosyaları ayarları
 STATIC_URL = 'static/'
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+# Anlık kamera görüntülerinin kaydedileceği yer
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Kaydedilen anlık görüntülerin diskte saklanacağı klasör
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# Bu dosyalara web üzerinden erişmek için kullanılacak URL ön eki
-MEDIA_URL = '/media/'
+# Django REST Framework için ayarlar
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ]
+}

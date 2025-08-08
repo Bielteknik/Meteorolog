@@ -1,0 +1,3 @@
+(ultra) PS C:\Users\kenan\Desktop\Desktop\Meteorology\07.08.2025\Meteorolog> python manage.py drf_create_token admin
+Generated token a0633840e049aa41d0fb39a32696dc7a3605c5eb for user admin
+(ultra) PS C:\Users\kenan\Desktop\Desktop\Meteorology\07.08.2025\Meteorolog> 

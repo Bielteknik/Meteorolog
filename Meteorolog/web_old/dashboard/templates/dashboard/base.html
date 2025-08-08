@@ -1,0 +1,70 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Kontrol Paneli{% endblock %} - METEOROLOG</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap');
+        :root {
+            --bg-dark: #121212; --sidebar-bg: #1a1a1a; --card-bg: #242424;
+            --primary-color: #00aaff; --text-color: #e0e0e0; --text-muted: #888888;
+            --border-color: #333333; --success-color: #2ecc71; --warning-color: #f1c40f; --danger-color: #e74c3c;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-dark); color: var(--text-color); margin: 0; display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 25px; flex-shrink: 0; }
+        .sidebar-header h1 { margin: 0 0 40px 0; font-size: 1.8em; text-align: center; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .sidebar-nav ul { list-style: none; padding: 0; }
+        .sidebar-nav li a { display: flex; align-items: center; padding: 15px; border-radius: 8px; text-decoration: none; color: var(--text-muted); font-weight: 500; margin-bottom: 5px; transition: all 0.3s; }
+        .sidebar-nav li a i { width: 30px; font-size: 1.1em; }
+        .sidebar-nav li a:hover { background-color: var(--card-bg); color: var(--text-color); }
+        .sidebar-nav li a.active { background-color: var(--primary-color); color: #fff; font-weight: 700; }
+        .sidebar-footer { margin-top: auto; }
+        .system-status-widget { background-color: var(--card-bg); padding: 15px; border-radius: 8px; font-size: 0.85em; }
+        .system-status-widget h4 { margin: 0 0 10px 0; color: var(--text-color); }
+        .system-status-widget p { margin: 5px 0; color: var(--text-muted); display: flex; justify-content: space-between; }
+        .system-status-widget span { font-weight: 700; color: var(--text-color); }
+        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; }
+        @media (max-width: 992px) { body { flex-direction: column; } .sidebar { width: 100%; height: auto; border-bottom: 1px solid var(--border-color); } .sidebar-footer { display: none; } }
+        
+        /* Sayfalara özel ek stiller için block */
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header"><h1><i class="fa-solid fa-snowflake"></i> METEOROLOG</h1></div>
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="{% url 'dashboard' %}" class="{% if active_page == 'dashboard' %}active{% endif %}"><i class="fa-solid fa-chart-line"></i> Kontrol Paneli</a></li>
+                <li><a href="{% url 'anomalies' %}" class="{% if active_page == 'anomalies' %}active{% endif %}"><i class="fa-solid fa-triangle-exclamation"></i> Anomali Kayıtları</a></li>
+                <li><a href="{% url 'reports' %}" class="{% if active_page == 'reports' %}active{% endif %}"><i class="fa-solid fa-file-alt"></i> Raporlar</a></li>
+                <li><a href="{% url 'settings' %}" class="{% if active_page == 'settings' %}active{% endif %}"><i class="fa-solid fa-cog"></i> Ayarlar</a></li>
+            </ul>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="system-status-widget">
+                <h4>Sistem Durumu</h4>
+                {% if latest_health_log %}
+                    <p>CPU Sıcaklığı: <span>{{ latest_health_log.cpu_temp_c|floatformat:1 }}°C</span></p>
+                    <p>Disk Kullanımı: <span>{{ latest_health_log.disk_usage_percent|floatformat:0 }}%</span></p>
+                    <p>Son Log: <span>{{ latest_health_log.timestamp|timesince }} önce</span></p>
+                {% else %}
+                    <p>Sağlık verisi yok.</p>
+                {% endif %}
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    {% block javascript %}
+    {% endblock %}
+</body>
+</html>
