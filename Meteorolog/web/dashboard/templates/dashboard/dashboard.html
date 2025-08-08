@@ -11,14 +11,12 @@
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); } }
     .section-title { font-size: 1.2em; font-weight: 500; color: var(--text-muted); margin: 40px 0 20px 0; display: flex; align-items: center; gap: 10px; }
     
-    /* Grid yapısını genişletiyoruz */
     .dashboard-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 20px;
     }
 
-    /* Kartlar */
     .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
     .gauge-card, .info-card { background-color: var(--card-bg); padding: 20px; border-radius: 12px; }
     .gauge-card { text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
@@ -31,9 +29,8 @@
     .info-card .value { font-size: 2.5em; font-weight: 700; }
     .info-card .unit { font-size: 0.5em; color: var(--text-muted); margin-left: 5px; }
     
-    /* Kamera Kartı */
     .camera-card {
-        grid-column: 1 / -1; /* Tüm satırı kaplasın */
+        grid-column: 1 / -1; 
         background-color: var(--card-bg);
         padding: 20px;
         border-radius: 12px;
@@ -65,7 +62,6 @@
     #snapshot-status { font-size: 0.9em; color: var(--text-muted); }
     #snapshot-status a { color: var(--success-color); text-decoration: none; }
 
-    /* Tablo */
     .table-container { background-color: var(--card-bg); padding: 25px; border-radius: 12px; overflow-x: auto; grid-column: 1 / -1;}
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
@@ -85,7 +81,6 @@
 
 <section class="dashboard-grid">
 
-    <!-- KAMERA KARTI -->
     <div class="camera-card">
         <h2 class="section-title" style="margin-top: 0;"><i class="fa-solid fa-camera"></i> Canlı Görüntü</h2>
         <img src="{% url 'video_feed' %}" alt="Canlı Kamera Akışı">
@@ -96,7 +91,6 @@
     </div>
 
     {% if latest_reading %}
-        <!-- SENSÖR KARTLARI -->
         <div class="gauge-card">
             <div class="gauge-title"><i class="fa-solid fa-temperature-low"></i> Sıcaklık</div>
             <div class="gauge-value-display"><span>{{ latest_reading.temperature_c|floatformat:1 }}</span><span class="unit">°C</span></div>
@@ -113,7 +107,6 @@
             <div class="gauge-visualizer" id="weight-gauge"></div>
         </div>
 
-        <!-- HESAPLANAN DEĞER KARTLARI -->
         <div class="info-card">
             <h3><i class="fa-solid fa-ruler-vertical"></i> Kar Yüksekliği</h3>
             <div class="value">{{ latest_reading.snow_height_mm|floatformat:1 }} <span class="unit">mm</span></div>
@@ -127,7 +120,6 @@
             <div class="value">{{ latest_reading.swe_mm|floatformat:1 }} <span class="unit">mm</span></div>
         </div>
 
-        <!-- TABLO KARTI -->
         <div class="table-container">
             <h2 class="section-title" style="margin-top: 0;"><i class="fa-solid fa-history"></i> Son Ölçüm Kayıtları</h2>
             <table>
@@ -157,9 +149,10 @@
 {% endblock %}
 
 {% block javascript %}
-{{ latest_reading|json_script:"latest-reading-data" }}
+{% if latest_reading_json %}
+    {{ latest_reading_json|json_script:"latest-reading-data" }}
+{% endif %}
 <script>
-    // Gauge'ları güncelleyen fonksiyon
     function updateGauge(gaugeId, value, min, max) {
         const gaugeElement = document.getElementById(gaugeId);
         if (!gaugeElement || value === null) return;
@@ -172,7 +165,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        // Sensör gauge'larını güncelle
         const dataElement = document.getElementById('latest-reading-data');
         if (dataElement) {
             const reading = JSON.parse(dataElement.textContent);
@@ -181,7 +173,6 @@
             updateGauge('weight-gauge', reading.snow_weight_kg, 0, 100);
         }
 
-        // Snapshot butonu için olay dinleyici
         const snapshotBtn = document.getElementById('snapshot-btn');
         const snapshotStatus = document.getElementById('snapshot-status');
 
@@ -203,10 +194,8 @@
                     snapshotStatus.textContent = 'İstek gönderilirken bir hata oluştu.';
                 })
                 .finally(() => {
-                    // Butonu 3 saniye sonra tekrar aktif et
                     setTimeout(() => {
                         snapshotBtn.disabled = false;
-                        // snapshotStatus.innerHTML = '';
                     }, 3000);
                 });
         });

@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.http import StreamingHttpResponse, JsonResponse
 from .models import Reading, AnomalyLog, SystemHealthLog
+from django.forms.models import model_to_dict
 import cv2
 import numpy as np
 import json
@@ -11,7 +12,7 @@ from django.conf import settings
 from datetime import datetime
 
 # --- GÖRÜNTÜ İŞLEME AYARLARI ---
-RTSP_URL = "rtsp://admin:Ejder.25@192.168.1.64:554/Streaming/Channels/101"
+RTSP_URL = "rtsp://admin:Ejder.25@192.168.1.50:554/Streaming/Channels/101"
 KALIBRASYON_DOSYASI = "kalibrasyon.json"
 lock = threading.Lock() # Kamera kaynağına aynı anda erişimi engellemek için
 
