@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SmartSense Pro IoT Dashboard</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+      overflow: hidden; /* Scroll yok */
+      height: 100vh;
+    }
+
+    .sidebar {
+      background-color: #1e2a38;
+      color: white;
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 220px;
+      padding: 1rem;
+      z-index: 100;
+    }
+
+    .sidebar h5 {
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .nav-link {
+      color: #ddd;
+      margin: 0.5rem 0;
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+      transition: all 0.3s;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      background-color: #0d47a1;
+      color: white;
+    }
+
+    main {
+      margin-left: 220px;
+      padding: 1.5rem;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 1rem;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .header h1 {
+      font-size: 1.8rem;
+      color: #4fc3f7;
+    }
+
+    #current-time {
+      background: #343a40;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+      height: 100%;
+    }
+
+    .card {
+      background-color: #1f1f1f;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      color: white;
+      overflow: hidden;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-header {
+      background: #2c3e50;
+      padding: 0.7rem 1rem;
+      font-weight: bold;
+      font-size: 1rem;
+    }
+
+    .card-body {
+      padding: 1rem;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gauge-container {
+      width: 100px;
+      height: 100px;
+      position: relative;
+    }
+
+    .gauge {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: #2a2a2a;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+
+    .gauge-value {
+      font-size: 1.2rem;
+    }
+
+    .gauge-label {
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+
+    .mini-chart {
+      height: 60px !important;
+      width: 100% !important;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 12px;
+      font-weight: bold;
+      margin-top: 0.5rem;
+    }
+
+    .status.normal { background: #2e7d32; color: white; }
+    .status.warning { background: #f57c00; color: white; }
+    .status.critical { background: #c62828; color: white; }
+
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      width: 100%;
+    }
+
+    .sensor-item {
+      font-size: 0.9rem;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <h5><i class="fas fa-microchip"></i> SmartSense Pro</h5>
+    <ul class="nav flex-column">
+      <li class="nav-item"><a class="nav-link active" href="#"><i class="fas fa-tachometer-alt"></i> Anasayfa</a></li>
+      <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-thermometer-half"></i> Sensörler</a></li>
+      <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chart-line"></i> Raporlar</a></li>
+      <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-bell"></i> Alarm</a></li>
+      <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-cogs"></i> Ayarlar</a></li>
+    </ul>
+  </nav>
+
+  <!-- Ana İçerik -->
+  <main>
+    <div class="header">
+      <h1><i class="fas fa-dashboard"></i> IoT Anlık İzleme</h1>
+      <span id="current-time"></span>
+    </div>
+
+    <div class="dashboard-grid">
+
+      <!-- 1. Sıcaklık -->
+      <div class="card">
+        <div class="card-header">🌡️ Sıcaklık</div>
+        <div class="card-body">
+          <div class="gauge-container">
+            <div class="gauge" id="temp-gauge">
+              <div><span id="temp-value">24.3</span>°C</div>
+            </div>
+          </div>
+          <canvas id="temp-chart" class="mini-chart"></canvas>
+          <span class="status normal" id="temp-status">Normal</span>
+        </div>
+      </div>
+
+      <!-- 2. Nem -->
+      <div class="card">
+        <div class="card-header">💧 Nem</div>
+        <div class="card-body">
+          <div class="gauge-container">
+            <div class="gauge" id="humid-gauge">
+              <div><span id="humid-value">58</span>%</div>
+            </div>
+          </div>
+          <canvas id="humid-chart" class="mini-chart"></canvas>
+          <span class="status normal" id="humid-status">Normal</span>
+        </div>
+      </div>
+
+      <!-- 3. Basınç -->
+      <div class="card">
+        <div class="card-header">🌀 Basınç</div>
+        <div class="card-body">
+          <div class="gauge-container">
+            <div class="gauge" id="press-gauge">
+              <div><span id="press-value">1013</span> hPa</div>
+            </div>
+          </div>
+          <canvas id="press-chart" class="mini-chart"></canvas>
+          <span class="status normal" id="press-status">Normal</span>
+        </div>
+      </div>
+
+      <!-- 4. Hareket -->
+      <div class="card">
+        <div class="card-header">👣 Hareket</div>
+        <div class="card-body">
+          <i class="fas fa-walking" style="font-size: 3rem; color: #4fc3f7;"></i>
+          <h5 id="motion-value">Hareketsiz</h5>
+          <span class="status normal">Normal</span>
+        </div>
+      </div>
+
+      <!-- 5. CO2 -->
+      <div class="card">
+        <div class="card-header">🌫️ CO₂</div>
+        <div class="card-body">
+          <div class="gauge-container">
+            <div class="gauge" id="co2-gauge">
+              <div><span id="co2-value">450</span> ppm</div>
+            </div>
+          </div>
+          <canvas id="co2-chart" class="mini-chart"></canvas>
+          <span class="status normal" id="co2-status">Normal</span>
+        </div>
+      </div>
+
+      <!-- 6. Işık -->
+      <div class="card">
+        <div class="card-header">💡 Işık</div>
+        <div class="card-body">
+          <div class="gauge-container">
+            <div class="gauge" id="light-gauge">
+              <div><span id="light-value">320</span> lux</div>
+            </div>
+          </div>
+          <canvas id="light-chart" class="mini-chart"></canvas>
+          <span class="status normal" id="light-status">Normal</span>
+        </div>
+      </div>
+
+      <!-- 7. Genel Bilgiler -->
+      <div class="card">
+        <div class="card-header">📊 Sistem Özeti</div>
+        <div class="card-body">
+          <div class="sensor-grid">
+            <div class="sensor-item">Toplam Sensör: <strong>12</strong></div>
+            <div class="sensor-item">Aktif: <strong>11</strong></div>
+            <div class="sensor-item">Uyarı: <strong>1</strong></div>
+            <div class="sensor-item">Çevrimdışı: <strong>0</strong></div>
+            <div class="sensor-item">Veri Frekansı: <strong>5sn</strong></div>
+            <div class="sensor-item">Son Güncelleme: <strong id="last-update">--:--</strong></div>
+          </div>
+          <div class="footer mt-2">Sunucu: iot-core-01</div>
+        </div>
+      </div>
+
+      <!-- 8. Harita / Lokasyon -->
+      <div class="card">
+        <div class="card-header">📍 Lokasyon İzleme</div>
+        <div class="card-body">
+          <img src="https://via.placeholder.com/200x100?text=Depo+Haritası" class="img-fluid rounded" alt="Lokasyon">
+          <div class="mt-2">
+            <small class="text-muted">Depo A - Bölüm 3</small>
+          </div>
+          <button class="btn btn-sm btn-outline-light mt-2">Detay</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Gerçek zamanlı saat
+    function updateTime() {
+      const now = new Date();
+      document.getElementById('current-time').textContent = now.toLocaleString();
+      document.getElementById('last-update').textContent = now.toTimeString().substr(0, 8);
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    // Rastgele veri üretici
+    function random(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    // Gauge rengi güncelle
+    function updateGaugeColor(element, value, thresholds) {
+      const { low, high } = thresholds;
+      if (value < low || value > high) {
+        element.style.background = '#c62828';
+        return 'critical';
+      } else if (value < low + (high - low) * 0.2 || value > high - (high - low) * 0.2) {
+        element.style.background = '#f57c00';
+        return 'warning';
+      } else {
+        element.style.background = '#2e7d32';
+        return 'normal';
+      }
+    }
+
+    // Mini grafik oluştur
+    function createMiniChart(ctxId, data, color) {
+      const ctx = document.getElementById(ctxId).getContext('2d');
+      if (window[ctxId]) window[ctxId].destroy();
+      window[ctxId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: Array.from({length: 6}, (_, i) => i),
+          datasets: [{
+            data: data,
+            borderColor: color,
+            backgroundColor: `${color}22`,
+            borderWidth: 2,
+            pointRadius: 1,
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: { x: { display: false }, y: { display: false } },
+          animation: { duration: 0 }
+        }
+      });
+    }
+
+    // Simülasyon verileri
+    const tempData = [23, 23.5, 24, 24.2, 24.1, 24.3];
+    const humidData = [55, 56, 57, 57.5, 57.8, 58];
+    const pressData = [1010, 1011, 1012, 1012.5, 1012.8, 1013];
+    const co2Data = [400, 420, 430, 440, 445, 450];
+    const lightData = [300, 310, 315, 318, 319, 320];
+
+    // Gerçek zamanlı güncelleme (5 saniyede bir)
+    setInterval(() => {
+      // Sıcaklık
+      const temp = 24 + random(-2, 3);
+      document.getElementById('temp-value').textContent = temp.toFixed(1);
+      const tempStatus = updateGaugeColor(document.getElementById('temp-gauge'), temp, { low: 18, high: 30 });
+      document.getElementById('temp-status').className = `status ${tempStatus}`;
+      document.getElementById('temp-status').textContent = tempStatus === 'normal' ? 'Normal' : tempStatus === 'warning' ? 'Uyarı' : 'Kritik';
+
+      // Nem
+      const humid = 58 + random(-5, 10);
+      document.getElementById('humid-value').textContent = Math.round(humid);
+      const humidStatus = updateGaugeColor(document.getElementById('humid-gauge'), humid, { low: 30, high: 70 });
+      document.getElementById('humid-status').className = `status ${humidStatus}`;
+
+      // Basınç
+      const press = 1013 + random(-10, 10);
+      document.getElementById('press-value').textContent = Math.round(press);
+      updateGaugeColor(document.getElementById('press-gauge'), press, { low: 980, high: 1040 });
+
+      // CO2
+      const co2 = 450 + random(-50, 100);
+      document.getElementById('co2-value').textContent = Math.round(co2);
+      const co2Status = updateGaugeColor(document.getElementById('co2-gauge'), co2, { low: 400, high: 1000 });
+      document.getElementById('co2-status').className = `status ${co2Status}`;
+
+      // Işık
+      const light = 320 + random(-50, 100);
+      document.getElementById('light-value').textContent = Math.round(light);
+      updateGaugeColor(document.getElementById('light-gauge'), light, { low: 100, high: 1000 });
+
+      // Hareket (rastgele)
+      if (Math.random() < 0.1) {
+        document.getElementById('motion-value').textContent = 'Hareket Var!';
+        document.querySelector('#motion-value').parentElement.querySelector('.status').className = 'status warning';
+      } else {
+        document.getElementById('motion-value').textContent = 'Hareketsiz';
+        document.querySelector('#motion-value').parentElement.querySelector('.status').className = 'status normal';
+      }
+
+      // Mini grafikleri güncelle
+      tempData.shift(); tempData.push(temp);
+      createMiniChart('temp-chart', tempData, '#2196F3');
+
+      humidData.shift(); humidData.push(humid);
+      createMiniChart('humid-chart', humidData, '#4CAF50');
+
+      pressData.shift(); pressData.push(press);
+      createMiniChart('press-chart', pressData, '#FF9800');
+
+      co2Data.shift(); co2Data.push(co2);
+      createMiniChart('co2-chart', co2Data, '#F44336');
+
+      lightData.shift(); lightData.push(light);
+      createMiniChart('light-chart', lightData, '#9C27B0');
+
+    }, 5000); // 5 saniyede bir güncelle
+
+    // İlk grafikleri oluştur
+    createMiniChart('temp-chart', tempData, '#2196F3');
+    createMiniChart('humid-chart', humidData, '#4CAF50');
+    createMiniChart('press-chart', pressData, '#FF9800');
+    createMiniChart('co2-chart', co2Data, '#F44336');
+    createMiniChart('light-chart', lightData, '#9C27B0');
+  </script>
+</body>
+</html>

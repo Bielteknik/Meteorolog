@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anomali Kayıtları - METEOROLOG</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Ana dashboard ile aynı stil kodları buraya kopyalanabilir veya harici bir CSS dosyasından çekilebilir. */
+        /* Bu örnekte okunabilirlik için stiller tekrar eklenmiştir. */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap');
+        :root {
+            --bg-dark: #121212; --sidebar-bg: #1a1a1a; --card-bg: #242424;
+            --primary-color: #00aaff; --text-color: #e0e0e0; --text-muted: #888888;
+            --border-color: #333333; --success-color: #2ecc71; --warning-color: #f1c40f; --danger-color: #e74c3c;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-dark); color: var(--text-color); margin: 0; display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 25px; flex-shrink: 0; }
+        .sidebar-header h1 { margin: 0 0 40px 0; font-size: 1.8em; text-align: center; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .sidebar-nav ul { list-style: none; padding: 0; }
+        .sidebar-nav li a { display: flex; align-items: center; padding: 15px; border-radius: 8px; text-decoration: none; color: var(--text-muted); font-weight: 500; margin-bottom: 5px; transition: all 0.3s; }
+        .sidebar-nav li a i { width: 30px; font-size: 1.1em; }
+        .sidebar-nav li a:hover { background-color: var(--card-bg); color: var(--text-color); }
+        .sidebar-nav li a.active { background-color: var(--primary-color); color: #fff; font-weight: 700; }
+        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; }
+        .main-header h2 { margin: 0 0 30px 0; font-size: 1.8em; font-weight: 500; }
+        
+        /* Filtreleme Çubuğu */
+        .filter-bar { display: flex; gap: 15px; background-color: var(--card-bg); padding: 15px; border-radius: 12px; margin-bottom: 30px; flex-wrap: wrap; }
+        .filter-group { display: flex; flex-direction: column; }
+        .filter-group label { font-size: 0.8em; color: var(--text-muted); margin-bottom: 5px; }
+        .filter-group input, .filter-group select { background-color: var(--sidebar-bg); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px 12px; border-radius: 6px; font-family: inherit; }
+        .filter-group button { background-color: var(--primary-color); color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: 700; }
+
+        /* Tablo */
+        .table-container { background-color: var(--card-bg); padding: 25px; border-radius: 12px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        thead th { font-size: 0.9em; color: var(--text-muted); font-weight: 500; text-transform: uppercase; }
+        .severity-badge { padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 700; color: #fff; }
+        .severity-badge.warning { background-color: var(--warning-color); }
+        .severity-badge.critical { background-color: var(--danger-color); }
+        .severity-badge.info { background-color: var(--primary-color); }
+
+        @media (max-width: 992px) { body { flex-direction: column; } .sidebar { width: 100%; height: auto; border-bottom: 1px solid var(--border-color); } }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header"><h1><i class="fa-solid fa-snowflake"></i> METEOROLOG</h1></div>
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="dashboard.html"><i class="fa-solid fa-chart-line"></i> Kontrol Paneli</a></li>
+                <li><a href="#" class="active"><i class="fa-solid fa-triangle-exclamation"></i> Anomali Kayıtları</a></li>
+                <li><a href="reports.html"><i class="fa-solid fa-file-alt"></i> Raporlar</a></li>
+                <li><a href="settings.html"><i class="fa-solid fa-cog"></i> Ayarlar</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="main-header"><h2>Anomali Kayıtları</h2></header>
+
+        <div class="filter-bar">
+            <div class="filter-group"><label for="start-date">Başlangıç Tarihi</label><input type="date" id="start-date"></div>
+            <div class="filter-group"><label for="end-date">Bitiş Tarihi</label><input type="date" id="end-date"></div>
+            <div class="filter-group">
+                <label for="anomaly-type">Anomali Tipi</label>
+                <select id="anomaly-type"><option value="">Tümü</option><option value="frozen">Donmuş Sensör</option><option value="spike">Ani Sıçrama</option></select>
+            </div>
+            <div class="filter-group"><label for="sensor-type">Sensör</label>
+                <select id="sensor-type"><option value="">Tümü</option><option value="temp">Sıcaklık</option><option value="weight">Ağırlık</option></select>
+            </div>
+            <div class="filter-group" style="margin-top: auto;"><button>Filtrele</button></div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>Tarih/Saat</th><th>Sensör</th><th>Anomali Tipi</th><th>Değer</th><th>Açıklama</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>15.07.2025 14:00:05</td><td>Sıcaklık</td><td><span class="severity-badge critical">Ani Sıçrama</span></td><td>+15.2°C</td><td>Sıcaklık 1 dakikada 18.2°C değişti (Limit: 10°C)</td></tr>
+                    <tr><td>15.07.2025 11:30:02</td><td>Ağırlık</td><td><span class="severity-badge warning">Donmuş Sensör</span></td><td>18.5 kg</td><td>Sensör değeri son 6 döngüdür aynı.</td></tr>
+                    <tr><td>14.07.2025 22:15:10</td><td>Nem</td><td><span class="severity-badge info">Sınır Dışı</span></td><td>102%</td><td>Okunan nem değeri mantıksal sınırların dışında.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</body>
+</html>

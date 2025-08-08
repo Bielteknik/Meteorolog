@@ -1,0 +1,63 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Anomali Kayıtları{% endblock %}
+
+{% block extra_css %}
+<style>
+    .main-header h2 { margin: 0 0 30px 0; font-size: 1.8em; font-weight: 500; }
+    .filter-bar { display: flex; gap: 15px; background-color: var(--card-bg); padding: 15px; border-radius: 12px; margin-bottom: 30px; flex-wrap: wrap; }
+    .filter-group { display: flex; flex-direction: column; }
+    .filter-group label { font-size: 0.8em; color: var(--text-muted); margin-bottom: 5px; }
+    .filter-group input, .filter-group select { background-color: var(--sidebar-bg); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px 12px; border-radius: 6px; font-family: inherit; }
+    .filter-group button { background-color: var(--primary-color); color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: 700; margin-top: auto; }
+    .table-container { background-color: var(--card-bg); padding: 25px; border-radius: 12px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    thead th { font-size: 0.9em; color: var(--text-muted); font-weight: 500; text-transform: uppercase; }
+    .severity-badge { padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 700; color: #fff; text-transform: capitalize; }
+    .severity-badge.warning { background-color: var(--warning-color); }
+    .severity-badge.critical { background-color: var(--danger-color); }
+    .severity-badge.info { background-color: var(--primary-color); }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="main-header"><h2>Anomali Kayıtları</h2></header>
+
+<div class="filter-bar">
+    <div class="filter-group"><label for="start-date">Başlangıç Tarihi</label><input type="date" id="start-date"></div>
+    <div class="filter-group"><label for="end-date">Bitiş Tarihi</label><input type="date" id="end-date"></div>
+    <div class="filter-group">
+        <label for="anomaly-type">Anomali Tipi</label>
+        <select id="anomaly-type"><option value="">Tümü</option><option value="frozen">Donmuş Sensör</option><option value="spike">Ani Sıçrama</option></select>
+    </div>
+    <div class="filter-group"><label for="sensor-type">Sensör</label>
+        <select id="sensor-type"><option value="">Tümü</option><option value="temp">Sıcaklık</option><option value="weight">Ağırlık</option></select>
+    </div>
+    <div class="filter-group"><button>Filtrele</button></div>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr><th>Tarih/Saat</th><th>Sensör</th><th>Anomali Tipi</th><th>Değer</th><th>Açıklama</th></tr>
+        </thead>
+        <tbody>
+            {% for log in anomaly_logs %}
+            <tr>
+                <td>{{ log.timestamp|date:"d.m.Y H:i:s" }}</td>
+                <td>{{ log.sensor }}</td>
+                <td>
+                    {# Anomali tipine göre renkli etiket ataması yapılabilir #}
+                    <span class="severity-badge info">{{ log.anomaly_type }}</span>
+                </td>
+                <td>{{ log.value }}</td>
+                <td>{{ log.details }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="text-align: center;">Gösterilecek anomali kaydı bulunamadı.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

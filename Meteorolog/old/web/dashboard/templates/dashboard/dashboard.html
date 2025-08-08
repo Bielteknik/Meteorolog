@@ -1,0 +1,142 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Kontrol Paneli{% endblock %}
+
+{% block extra_css %}
+<style>
+    .main-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+    .main-header h2 { margin: 0; font-size: 1.8em; font-weight: 500; }
+    .live-status { display: flex; align-items: center; gap: 8px; background-color: var(--card-bg); padding: 8px 15px; border-radius: 20px; font-weight: 500; }
+    .live-status .light { width: 12px; height: 12px; border-radius: 50%; background-color: var(--success-color); animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); } }
+    .section-title { font-size: 1.2em; font-weight: 500; color: var(--text-muted); margin: 40px 0 20px 0; display: flex; align-items: center; gap: 10px; }
+    .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+    .gauge-card { background-color: var(--card-bg); padding: 20px; border-radius: 12px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
+    .gauge-title { font-size: 0.9em; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; }
+    .gauge-value-display { font-size: 2.2em; font-weight: 700; margin: 15px 0; }
+    .gauge-value-display .unit { font-size: 0.5em; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
+    .gauge-visualizer { position: relative; width: 120px; height: 120px; margin: 0 auto; border-radius: 50%; background: conic-gradient(var(--primary-color) 0deg, var(--border-color) 0deg); display: flex; align-items: center; justify-content: center; transition: background 0.5s; }
+    .gauge-visualizer::before { content: ''; position: absolute; width: 80%; height: 80%; background: var(--card-bg); border-radius: 50%; }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+    .info-card { background-color: var(--card-bg); padding: 25px; border-radius: 12px; }
+    .info-card h3 { margin: 0 0 15px 0; font-size: 1em; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+    .info-card .value { font-size: 2.5em; font-weight: 700; }
+    .info-card .unit { font-size: 0.5em; color: var(--text-muted); margin-left: 5px; }
+    .table-container { background-color: var(--card-bg); padding: 25px; border-radius: 12px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    thead th { font-size: 0.9em; color: var(--text-muted); font-weight: 500; text-transform: uppercase; }
+    tbody tr:hover { background-color: #2c2c2c; }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="main-header">
+    <h2>Kontrol Paneli</h2>
+    <div class="live-status">
+        <div class="light"></div>
+        <span>İstasyon Aktif</span>
+    </div>
+</header>
+
+{% if latest_reading %}
+    <section>
+        <h2 class="section-title"><i class="fa-solid fa-rss"></i> Anlık Sensör Değerleri</h2>
+        <div class="gauge-grid">
+            <div class="gauge-card">
+                <div class="gauge-title"><i class="fa-solid fa-temperature-low"></i> Sıcaklık</div>
+                <div class="gauge-value-display"><span>{{ latest_reading.temperature_c|floatformat:1 }}</span><span class="unit">°C</span></div>
+                <div class="gauge-visualizer" id="temp-gauge"></div>
+            </div>
+            <div class="gauge-card">
+                <div class="gauge-title"><i class="fa-solid fa-water"></i> Nem</div>
+                <div class="gauge-value-display"><span>{{ latest_reading.humidity_percent|floatformat:0 }}</span><span class="unit">%</span></div>
+                <div class="gauge-visualizer" id="hum-gauge"></div>
+            </div>
+            <div class="gauge-card">
+                <div class="gauge-title"><i class="fa-solid fa-down-long"></i> Mesafe</div>
+                <div class="gauge-value-display"><span>{{ latest_reading.distance_mm|floatformat:0|default:"N/A" }}</span><span class="unit">mm</span></div>
+                <div class="gauge-visualizer" id="dist-gauge"></div>
+            </div>
+            <div class="gauge-card">
+                <div class="gauge-title"><i class="fa-solid fa-weight-scale"></i> Ağırlık</div>
+                <div class="gauge-value-display"><span>{{ latest_reading.snow_weight_kg|floatformat:1 }}</span><span class="unit">kg</span></div>
+                <div class="gauge-visualizer" id="weight-gauge"></div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <h2 class="section-title"><i class="fa-solid fa-calculator"></i> Hesaplanan Değerler</h2>
+        <div class="card-grid">
+            <div class="info-card">
+                <h3><i class="fa-solid fa-ruler-vertical"></i> Kar Yüksekliği</h3>
+                <div class="value">{{ latest_reading.snow_height_mm|floatformat:1 }} <span class="unit">mm</span></div>
+            </div>
+            <div class="info-card">
+                <h3><i class="fa-solid fa-cube"></i> Kar Yoğunluğu</h3>
+                <div class="value">{{ latest_reading.snow_density_kg_m3|floatformat:1 }} <span class="unit">kg/m³</span></div>
+            </div>
+             <div class="info-card">
+                <h3><i class="fa-solid fa-droplet"></i> Kar Su Eşdeğeri (SWE)</h3>
+                <div class="value">{{ latest_reading.swe_mm|floatformat:1 }} <span class="unit">mm</span></div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <h2 class="section-title"><i class="fa-solid fa-history"></i> Son Ölçüm Kayıtları</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>Kayıt Tarihi</th><th>Sıcaklık</th><th>Nem</th><th>Kar Yüksekliği</th><th>Yoğunluk</th><th>SWE</th></tr>
+                </thead>
+                <tbody>
+                    {% for reading in recent_readings %}
+                    <tr>
+                        <td>{{ reading.timestamp|date:"d.m.Y H:i:s" }}</td>
+                        <td>{{ reading.temperature_c|floatformat:1 }}°C</td>
+                        <td>{{ reading.humidity_percent|floatformat:0 }}%</td>
+                        <td>{{ reading.snow_height_mm|floatformat:1 }} mm</td>
+                        <td>{{ reading.snow_density_kg_m3|floatformat:1 }} kg/m³</td>
+                        <td>{{ reading.swe_mm|floatformat:1 }} mm</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" style="text-align: center;">Gösterilecek kayıt bulunamadı.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% else %}
+    <div class="card-grid"><div class="info-card"><h3>Veri Bekleniyor...</h3><p>Sistem henüz bir ölçüm kaydetmedi. Lütfen bir sonraki veri toplama döngüsünü bekleyin.</p></div></div>
+{% endif %}
+{% endblock %}
+
+{% block javascript %}
+{{ latest_reading|json_script:"latest-reading-data" }}
+<script>
+    function updateGauge(gaugeId, value, min, max) {
+        const gaugeElement = document.getElementById(gaugeId);
+        if (!gaugeElement || value === null) return;
+        const percentage = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+        let color = 'var(--primary-color)';
+        if (gaugeId === 'temp-gauge') {
+            if (value > 25) color = 'var(--danger-color)';
+            else if (value > 0) color = 'var(--warning-color)';
+        }
+        gaugeElement.style.background = `conic-gradient(${color} ${percentage * 3.6}deg, var(--border-color) 0deg)`;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const dataElement = document.getElementById('latest-reading-data');
+        if (dataElement) {
+            const reading = JSON.parse(dataElement.textContent);
+            updateGauge('temp-gauge', reading.temperature_c, -40, 40);
+            updateGauge('hum-gauge', reading.humidity_percent, 0, 100);
+            updateGauge('dist-gauge', reading.distance_mm, 0, 4000); 
+            updateGauge('weight-gauge', reading.snow_weight_kg, 0, 100);
+        }
+    });
+</script>
+{% endblock %}
