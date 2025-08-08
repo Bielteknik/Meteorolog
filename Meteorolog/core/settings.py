@@ -62,9 +62,6 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
-
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -72,9 +69,18 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+    },
+    # IoT uygulamasının verilerini okuyacağımız ikinci veritabanı
+    'iot_data': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        # station_data.db'nin tam yolunu belirtiyoruz.
+        'NAME': os.path.join(BASE_DIR, 'station_data.db'),
     }
 }
 
+# --- VERİTABANI YÖNLENDİRİCİSİ ---
+# Django'ya hangi modelin hangi veritabanını kullanacağını söyler.
+DATABASE_ROUTERS = ['core.routers.IoTDataRouter']
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -94,7 +100,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
+WSGI_APPLICATION = 'core.wsgi.application'
 # Uluslararasılaştırma
 LANGUAGE_CODE = 'tr-tr' # Dili Türkçe yapalım
 TIME_ZONE = 'Europe/Istanbul'

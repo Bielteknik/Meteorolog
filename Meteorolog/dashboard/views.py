@@ -26,13 +26,20 @@ def get_rtsp_url():
         return None
 
 def dashboard_view(request):
-    # HATA DÜZELTİLDİ: Olmayan 'get_common_context' fonksiyonu çağrısı kaldırıldı.
-    # Context sözlüğü doğrudan burada oluşturuluyor.
     context = {
-        'latest_reading': Reading.objects.first(),
-        'recent_readings': Reading.objects.all()[:5],
+        'active_page': 'dashboard',
+        # Sorguyu 'iot_data' veritabanında çalıştır
+        'latest_reading': Reading.objects.using('iot_data').first(),
+        'recent_readings': Reading.objects.using('iot_data').all()[:5],
     }
     return render(request, 'dashboard/dashboard.html', context)
+
+def anomalies_view(request):
+    context = {
+        'active_page': 'anomalies',
+        'anomaly_logs': AnomalyLog.objects.using('iot_data').all()[:50]
+    }
+    return render(request, 'dashboard/anomalies.html', context)
 
 def kalibrasyon_verisi_yukle():
     try:
@@ -112,16 +119,6 @@ def snapshot_view(request):
     file_url = os.path.join(settings.MEDIA_URL, 'snapshots', filename).replace("\\", "/")
 
     return JsonResponse({'status': 'ok', 'message': f'Görüntü kaydedildi: {filename}', 'url': file_url, 'height': f'{kar_yuksekligi:.1f} cm'})
-
-def anomalies_view(request):
-    """Anomali kayıtlarını listeleyen sayfa."""
-    context = {
-        'active_page': 'anomalies', # Aktif sayfayı belirt
-        'anomaly_logs': AnomalyLog.objects.all()[:50]
-    }
-    # Bu view için bir şablon dosyası oluşturmamız gerekecek.
-    # Şimdilik ana şablonu kullanan boş bir sayfa render edebiliriz.
-    return render(request, 'dashboard/anomalies.html', context)
 
 def reports_view(request):
     """Raporlar sayfasını gösterir."""

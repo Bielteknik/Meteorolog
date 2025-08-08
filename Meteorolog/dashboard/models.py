@@ -12,8 +12,10 @@ class Setting(models.Model):
         verbose_name = "Sistem Ayarı"
         verbose_name_plural = "Sistem Ayarları"
 
+
 class Reading(models.Model):
-    timestamp = models.DateTimeField(auto_now_add=True)
+    id = models.AutoField(primary_key=True)
+    timestamp = models.DateTimeField()
     distance_mm = models.FloatField(blank=True, null=True)
     snow_weight_kg = models.FloatField(blank=True, null=True)
     snow_height_mm = models.FloatField(blank=True, null=True)
@@ -21,44 +23,52 @@ class Reading(models.Model):
     swe_mm = models.FloatField(blank=True, null=True)
     temperature_c = models.FloatField(blank=True, null=True)
     humidity_percent = models.FloatField(blank=True, null=True)
-    data_source = models.CharField(max_length=100, blank=True, null=True)
-
+    data_source = models.TextField(blank=True, null=True) # CharField -> TextField
     class Meta:
+        managed = False
+        db_table = 'readings'
         ordering = ['-timestamp']
 
 class ApiQueue(models.Model):
-    timestamp = models.DateTimeField(auto_now_add=True)
-    payload = models.TextField()
-    attempts = models.IntegerField(default=0)
-    is_sent = models.BooleanField(default=False)
-
+    id = models.AutoField(primary_key=True)
+    timestamp = models.DateTimeField()
+    payload = models.TextField() # CharField -> TextField
+    attempts = models.IntegerField()
     class Meta:
+        managed = False
+        db_table = 'api_queue'
         ordering = ['-timestamp']
 
 class EmailLog(models.Model):
-    timestamp = models.DateTimeField(auto_now_add=True)
-    recipient = models.EmailField()
-    subject = models.CharField(max_length=255)
-    body = models.TextField()
-    is_sent = models.BooleanField(default=True)
-
+    id = models.AutoField(primary_key=True)
+    timestamp = models.DateTimeField()
+    recipient = models.TextField()
+    subject = models.TextField()
     class Meta:
+        managed = False
+        db_table = 'email_logs'
         ordering = ['-timestamp']
 
 class AnomalyLog(models.Model):
-    timestamp = models.DateTimeField(auto_now_add=True)
-    anomaly_type = models.CharField(max_length=50)
+    id = models.AutoField(primary_key=True)
+    timestamp = models.DateTimeField()
+    sensor = models.TextField()
+    anomaly_type = models.TextField()
+    value = models.TextField(blank=True, null=True)
     details = models.TextField(blank=True, null=True)
-
     class Meta:
+        managed = False
+        db_table = 'anomaly_logs'
         ordering = ['-timestamp']
 
 class SystemHealthLog(models.Model):
-    timestamp = models.DateTimeField(auto_now_add=True)
+    id = models.AutoField(primary_key=True)
+    timestamp = models.DateTimeField()
     cpu_temp_c = models.FloatField(blank=True, null=True)
     cpu_usage_percent = models.FloatField(blank=True, null=True)
     memory_usage_percent = models.FloatField(blank=True, null=True)
     disk_usage_percent = models.FloatField(blank=True, null=True)
-
     class Meta:
+        managed = False
+        db_table = 'system_health_logs'
         ordering = ['-timestamp']
