@@ -1,28 +1,27 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Kontrol Paneli{% endblock %} - METEOROLOG</title>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        /* ... CSS kodları aynı kalıyor ... */
-        .sidebar-nav li a.active { background-color: var(--primary-color); color: #fff; font-weight: 700; }
-    </style>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/main.css' %}">
+    
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
     <aside class="sidebar">
         <div class="sidebar-header"><h1><i class="fa-solid fa-snowflake"></i> METEOROLOG</h1></div>
         <nav class="sidebar-nav">
             <ul>
-                <!-- DEĞİŞİKLİK BURADA: 'active_page' kontrolü eklendi -->
                 <li><a href="{% url 'dashboard' %}" class="{% if active_page == 'dashboard' %}active{% endif %}"><i class="fa-solid fa-chart-line"></i> Kontrol Paneli</a></li>
                 <li><a href="{% url 'anomalies' %}" class="{% if active_page == 'anomalies' %}active{% endif %}"><i class="fa-solid fa-triangle-exclamation"></i> Anomali Kayıtları</a></li>
                 <li><a href="{% url 'reports' %}" class="{% if active_page == 'reports' %}active{% endif %}"><i class="fa-solid fa-file-alt"></i> Raporlar</a></li>
                 <li><a href="{% url 'settings' %}" class="{% if active_page == 'settings' %}active{% endif %}"><i class="fa-solid fa-cog"></i> Ayarlar</a></li>
             </ul>
         </nav>
-        <!-- ... sidebar-footer aynı kalıyor ... -->
     </aside>
     <main class="main-content">
         {% block content %}{% endblock %}
