@@ -23,10 +23,10 @@ class ReadingAdmin(ReadOnlyAdmin):
 
 @admin.register(AnomalyLog)
 class AnomalyLogAdmin(ReadOnlyAdmin):
-    # 'sensor' alanı hem list_display'den hem de list_filter'dan kaldırıldı.
-    list_display = ('timestamp', 'anomaly_type', 'value')
+    # Modelden kaldırılan 'sensor' ve 'value' alanları buradan da temizlendi.
+    list_display = ('timestamp', 'anomaly_type', 'details')
     list_filter = ('timestamp', 'anomaly_type')
-    search_fields = ('details', 'value')
+    search_fields = ('details',)
     date_hierarchy = 'timestamp'
 
 @admin.register(SystemHealthLog)

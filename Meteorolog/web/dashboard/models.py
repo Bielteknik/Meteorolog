@@ -19,7 +19,7 @@ class Reading(models.Model):
     class Meta:
         managed = False
         db_table = 'readings'
-        ordering = ['-timestamp'] 
+        ordering = ['-timestamp']
 
 class ApiQueue(models.Model):
     id = models.AutoField(primary_key=True)
@@ -34,10 +34,13 @@ class ApiQueue(models.Model):
 class AnomalyLog(models.Model):
     id = models.AutoField(primary_key=True)
     timestamp = models.DateTimeField()
-    # sensor = models.TextField()  # <-- BU SATIR VERİTABANINDA OLMADIĞI İÇİN KALDIRILDI
     anomaly_type = models.TextField()
-    value = models.TextField(blank=True, null=True)
     details = models.TextField(blank=True, null=True)
+    
+    # NOT: 'sensor' ve 'value' alanları, veritabanında 'no such column' hatası
+    # verdiği için kaldırılmıştır. Bu, Django modelinin veritabanı şemasıyla
+    # uyumlu olmasını sağlar. Eğer bu alanlar veritabanına eklenirse,
+    # buraya da tekrar eklenmelidir.
 
     class Meta:
         managed = False

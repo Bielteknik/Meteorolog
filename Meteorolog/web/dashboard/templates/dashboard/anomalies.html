@@ -15,8 +15,6 @@
     th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
     thead th { font-size: 0.9em; color: var(--text-muted); font-weight: 500; text-transform: uppercase; }
     .severity-badge { padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 700; color: #fff; text-transform: capitalize; }
-    .severity-badge.warning { background-color: var(--warning-color); }
-    .severity-badge.critical { background-color: var(--danger-color); }
     .severity-badge.info { background-color: var(--primary-color); }
 </style>
 {% endblock %}
@@ -31,7 +29,6 @@
         <label for="anomaly-type">Anomali Tipi</label>
         <select id="anomaly-type"><option value="">Tümü</option><option value="frozen">Donmuş Sensör</option><option value="spike">Ani Sıçrama</option></select>
     </div>
-    <!-- Sensör filtresi de kaldırıldı -->
     <div class="filter-group"><button>Filtrele</button></div>
 </div>
 
@@ -40,9 +37,7 @@
         <thead>
             <tr>
                 <th>Tarih/Saat</th>
-                <!-- <th>Sensör</th> <-- Sütun başlığı kaldırıldı -->
                 <th>Anomali Tipi</th>
-                <th>Değer</th>
                 <th>Açıklama</th>
             </tr>
         </thead>
@@ -50,15 +45,13 @@
             {% for log in anomaly_logs %}
             <tr>
                 <td>{{ log.timestamp|date:"d.m.Y H:i:s" }}</td>
-                <!-- <td>{{ log.sensor }}</td> <-- Sütun verisi kaldırıldı -->
                 <td>
                     <span class="severity-badge info">{{ log.anomaly_type }}</span>
                 </td>
-                <td>{{ log.value }}</td>
                 <td>{{ log.details }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="4" style="text-align: center;">Gösterilecek anomali kaydı bulunamadı.</td></tr>
+            <tr><td colspan="3" style="text-align: center;">Gösterilecek anomali kaydı bulunamadı.</td></tr>
             {% endfor %}
         </tbody>
     </table>
