@@ -5,7 +5,7 @@ import sys
 
 # --- AYARLAR ---
 # Çalışan RTSP URL'niz
-RTSP_URL = "rtsp://admin:Ejder.25@192.168.1.64:554/Streaming/Channels/101"
+RTSP_URL = "rtsp://admin:Ejder.25@192.168.1.50:554/Streaming/Channels/101"
 
 # Kalibrasyon için kullandığınız referans cetvelinin gerçek yüksekliği (cm)
 # Örneğin, cetvelin altındaki "0" işareti ile üstündeki "15" işareti arasını seçiyorsanız, bu değer 15.0 olmalı.
