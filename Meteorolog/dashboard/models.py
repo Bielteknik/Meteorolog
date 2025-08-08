@@ -1,17 +1,12 @@
 from django.db import models
 
 class Setting(models.Model):
-    """Sistem ayarlarını veritabanında saklamak için model."""
-    key = models.CharField(max_length=50, primary_key=True, help_text="Ayarın anahtarı (örn: RTSP_USER). Değiştirilemez.")
+    key = models.CharField(max_length=50, primary_key=True, help_text="Ayarın anahtarı. Değiştirilemez.")
     value = models.CharField(max_length=255, help_text="Ayarın değeri.")
-
-    def __str__(self):
-        return self.key
-    
+    def __str__(self): return self.key
     class Meta:
         verbose_name = "Sistem Ayarı"
         verbose_name_plural = "Sistem Ayarları"
-
 
 class Reading(models.Model):
     id = models.AutoField(primary_key=True)
@@ -23,7 +18,7 @@ class Reading(models.Model):
     swe_mm = models.FloatField(blank=True, null=True)
     temperature_c = models.FloatField(blank=True, null=True)
     humidity_percent = models.FloatField(blank=True, null=True)
-    data_source = models.TextField(blank=True, null=True) # CharField -> TextField
+    data_source = models.TextField(blank=True, null=True)
     class Meta:
         managed = False
         db_table = 'readings'
@@ -32,8 +27,9 @@ class Reading(models.Model):
 class ApiQueue(models.Model):
     id = models.AutoField(primary_key=True)
     timestamp = models.DateTimeField()
-    payload = models.TextField() # CharField -> TextField
+    payload = models.TextField()
     attempts = models.IntegerField()
+    # is_sent = models.BooleanField(default=False) # HATA: Bu alan modelde yok, kaldırıldı.
     class Meta:
         managed = False
         db_table = 'api_queue'
@@ -44,6 +40,7 @@ class EmailLog(models.Model):
     timestamp = models.DateTimeField()
     recipient = models.TextField()
     subject = models.TextField()
+    # is_sent = models.BooleanField(default=True) # HATA: Bu alan modelde yok, kaldırıldı.
     class Meta:
         managed = False
         db_table = 'email_logs'

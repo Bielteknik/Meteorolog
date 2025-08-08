@@ -4,10 +4,8 @@ from .models import Reading, ApiQueue, EmailLog, AnomalyLog, SystemHealthLog, Se
 @admin.register(Setting)
 class SettingAdmin(admin.ModelAdmin):
     list_display = ('key', 'value')
-    # Yeni ayar eklemeyi engelle, sadece mevcutları düzenle
     def has_add_permission(self, request):
         return False
-    # Ayarları silmeyi engelle
     def has_delete_permission(self, request, obj=None):
         return False
 
@@ -18,18 +16,20 @@ class ReadingAdmin(admin.ModelAdmin):
 
 @admin.register(ApiQueue)
 class ApiQueueAdmin(admin.ModelAdmin):
-    list_display = ('timestamp', 'is_sent', 'attempts')
-    list_filter = ('is_sent', 'timestamp')
+    # 'is_sent' alanı list_display ve list_filter'dan kaldırıldı.
+    list_display = ('timestamp', 'attempts', 'payload')
+    list_filter = ('timestamp',)
 
 @admin.register(EmailLog)
 class EmailLogAdmin(admin.ModelAdmin):
-    list_display = ('timestamp', 'recipient', 'subject', 'is_sent')
-    list_filter = ('is_sent', 'timestamp')
+    # 'is_sent' alanı list_display ve list_filter'dan kaldırıldı.
+    list_display = ('timestamp', 'recipient', 'subject')
+    list_filter = ('timestamp',)
 
 @admin.register(AnomalyLog)
 class AnomalyLogAdmin(admin.ModelAdmin):
-    list_display = ('timestamp', 'anomaly_type')
-    list_filter = ('anomaly_type', 'timestamp')
+    list_display = ('timestamp', 'sensor', 'anomaly_type')
+    list_filter = ('sensor', 'anomaly_type', 'timestamp')
 
 @admin.register(SystemHealthLog)
 class SystemHealthLogAdmin(admin.ModelAdmin):
