@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import StreamingHttpResponse, JsonResponse
-from .models import Reading, SystemHealthLog, Setting
+from .models import Reading, SystemHealthLog, Setting, AnomalyLog
 import cv2
 import numpy as np
 import json
@@ -112,3 +112,23 @@ def snapshot_view(request):
     file_url = os.path.join(settings.MEDIA_URL, 'snapshots', filename).replace("\\", "/")
 
     return JsonResponse({'status': 'ok', 'message': f'Görüntü kaydedildi: {filename}', 'url': file_url, 'height': f'{kar_yuksekligi:.1f} cm'})
+
+def anomalies_view(request):
+    """Anomali kayıtlarını listeleyen sayfa."""
+    context = {
+        'active_page': 'anomalies', # Aktif sayfayı belirt
+        'anomaly_logs': AnomalyLog.objects.all()[:50]
+    }
+    # Bu view için bir şablon dosyası oluşturmamız gerekecek.
+    # Şimdilik ana şablonu kullanan boş bir sayfa render edebiliriz.
+    return render(request, 'dashboard/anomalies.html', context)
+
+def reports_view(request):
+    """Raporlar sayfasını gösterir."""
+    context = {'active_page': 'reports'}
+    return render(request, 'dashboard/reports.html', context)
+
+def settings_view(request):
+    """Ayarlar sayfasını gösterir."""
+    context = {'active_page': 'settings'}
+    return render(request, 'dashboard/settings.html', context)
