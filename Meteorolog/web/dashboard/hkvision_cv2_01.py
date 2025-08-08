@@ -4,7 +4,7 @@ import json
 
 # --- AYARLAR ---
 # Bir önceki koddan aldığınız çalışan RTSP URL'niz
-RTSP_URL = "rtsp://admin:Ejder.25@192.168.1.64:554/Streaming/Channels/101"
+RTSP_URL = "rtsp://admin:Ejder.25@192.168.1.50:554/Streaming/Channels/101"
 
 # Eşel cetvelinin gerçek yüksekliği (cm)
 CETVEL_GERCEK_YUKSEKLIK_CM = 15.0
