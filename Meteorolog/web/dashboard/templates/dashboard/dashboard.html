@@ -10,19 +10,63 @@
     .live-status .light { width: 12px; height: 12px; border-radius: 50%; background-color: var(--success-color); animation: pulse 2s infinite; }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); } }
     .section-title { font-size: 1.2em; font-weight: 500; color: var(--text-muted); margin: 40px 0 20px 0; display: flex; align-items: center; gap: 10px; }
+    
+    /* Grid yapısını genişletiyoruz */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    /* Kartlar */
     .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
-    .gauge-card { background-color: var(--card-bg); padding: 20px; border-radius: 12px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
+    .gauge-card, .info-card { background-color: var(--card-bg); padding: 20px; border-radius: 12px; }
+    .gauge-card { text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
     .gauge-title { font-size: 0.9em; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; }
     .gauge-value-display { font-size: 2.2em; font-weight: 700; margin: 15px 0; }
     .gauge-value-display .unit { font-size: 0.5em; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
     .gauge-visualizer { position: relative; width: 120px; height: 120px; margin: 0 auto; border-radius: 50%; background: conic-gradient(var(--primary-color) 0deg, var(--border-color) 0deg); display: flex; align-items: center; justify-content: center; transition: background 0.5s; }
     .gauge-visualizer::before { content: ''; position: absolute; width: 80%; height: 80%; background: var(--card-bg); border-radius: 50%; }
-    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-    .info-card { background-color: var(--card-bg); padding: 25px; border-radius: 12px; }
     .info-card h3 { margin: 0 0 15px 0; font-size: 1em; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
     .info-card .value { font-size: 2.5em; font-weight: 700; }
     .info-card .unit { font-size: 0.5em; color: var(--text-muted); margin-left: 5px; }
-    .table-container { background-color: var(--card-bg); padding: 25px; border-radius: 12px; overflow-x: auto; }
+    
+    /* Kamera Kartı */
+    .camera-card {
+        grid-column: 1 / -1; /* Tüm satırı kaplasın */
+        background-color: var(--card-bg);
+        padding: 20px;
+        border-radius: 12px;
+    }
+    .camera-card img {
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+        background-color: #000;
+    }
+    .camera-actions {
+        margin-top: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .snapshot-btn {
+        background-color: var(--primary-color);
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 700;
+        transition: background-color 0.3s;
+    }
+    .snapshot-btn:hover { background-color: #0077b3; }
+    .snapshot-btn:disabled { background-color: var(--text-muted); cursor: not-allowed; }
+    #snapshot-status { font-size: 0.9em; color: var(--text-muted); }
+    #snapshot-status a { color: var(--success-color); text-decoration: none; }
+
+    /* Tablo */
+    .table-container { background-color: var(--card-bg); padding: 25px; border-radius: 12px; overflow-x: auto; grid-column: 1 / -1;}
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
     thead th { font-size: 0.9em; color: var(--text-muted); font-weight: 500; text-transform: uppercase; }
@@ -39,54 +83,53 @@
     </div>
 </header>
 
-{% if latest_reading %}
-    <section>
-        <h2 class="section-title"><i class="fa-solid fa-rss"></i> Anlık Sensör Değerleri</h2>
-        <div class="gauge-grid">
-            <div class="gauge-card">
-                <div class="gauge-title"><i class="fa-solid fa-temperature-low"></i> Sıcaklık</div>
-                <div class="gauge-value-display"><span>{{ latest_reading.temperature_c|floatformat:1 }}</span><span class="unit">°C</span></div>
-                <div class="gauge-visualizer" id="temp-gauge"></div>
-            </div>
-            <div class="gauge-card">
-                <div class="gauge-title"><i class="fa-solid fa-water"></i> Nem</div>
-                <div class="gauge-value-display"><span>{{ latest_reading.humidity_percent|floatformat:0 }}</span><span class="unit">%</span></div>
-                <div class="gauge-visualizer" id="hum-gauge"></div>
-            </div>
-            <div class="gauge-card">
-                <div class="gauge-title"><i class="fa-solid fa-down-long"></i> Mesafe</div>
-                <div class="gauge-value-display"><span>{{ latest_reading.distance_mm|floatformat:0|default:"N/A" }}</span><span class="unit">mm</span></div>
-                <div class="gauge-visualizer" id="dist-gauge"></div>
-            </div>
-            <div class="gauge-card">
-                <div class="gauge-title"><i class="fa-solid fa-weight-scale"></i> Ağırlık</div>
-                <div class="gauge-value-display"><span>{{ latest_reading.snow_weight_kg|floatformat:1 }}</span><span class="unit">kg</span></div>
-                <div class="gauge-visualizer" id="weight-gauge"></div>
-            </div>
-        </div>
-    </section>
+<section class="dashboard-grid">
 
-    <section>
-        <h2 class="section-title"><i class="fa-solid fa-calculator"></i> Hesaplanan Değerler</h2>
-        <div class="card-grid">
-            <div class="info-card">
-                <h3><i class="fa-solid fa-ruler-vertical"></i> Kar Yüksekliği</h3>
-                <div class="value">{{ latest_reading.snow_height_mm|floatformat:1 }} <span class="unit">mm</span></div>
-            </div>
-            <div class="info-card">
-                <h3><i class="fa-solid fa-cube"></i> Kar Yoğunluğu</h3>
-                <div class="value">{{ latest_reading.snow_density_kg_m3|floatformat:1 }} <span class="unit">kg/m³</span></div>
-            </div>
-             <div class="info-card">
-                <h3><i class="fa-solid fa-droplet"></i> Kar Su Eşdeğeri (SWE)</h3>
-                <div class="value">{{ latest_reading.swe_mm|floatformat:1 }} <span class="unit">mm</span></div>
-            </div>
+    <!-- KAMERA KARTI -->
+    <div class="camera-card">
+        <h2 class="section-title" style="margin-top: 0;"><i class="fa-solid fa-camera"></i> Canlı Görüntü</h2>
+        <img src="{% url 'video_feed' %}" alt="Canlı Kamera Akışı">
+        <div class="camera-actions">
+            <button id="snapshot-btn" class="snapshot-btn"><i class="fa-solid fa-camera-retro"></i> Anlık Görüntü Al</button>
+            <div id="snapshot-status"></div>
         </div>
-    </section>
+    </div>
 
-    <section>
-        <h2 class="section-title"><i class="fa-solid fa-history"></i> Son Ölçüm Kayıtları</h2>
+    {% if latest_reading %}
+        <!-- SENSÖR KARTLARI -->
+        <div class="gauge-card">
+            <div class="gauge-title"><i class="fa-solid fa-temperature-low"></i> Sıcaklık</div>
+            <div class="gauge-value-display"><span>{{ latest_reading.temperature_c|floatformat:1 }}</span><span class="unit">°C</span></div>
+            <div class="gauge-visualizer" id="temp-gauge"></div>
+        </div>
+        <div class="gauge-card">
+            <div class="gauge-title"><i class="fa-solid fa-water"></i> Nem</div>
+            <div class="gauge-value-display"><span>{{ latest_reading.humidity_percent|floatformat:0 }}</span><span class="unit">%</span></div>
+            <div class="gauge-visualizer" id="hum-gauge"></div>
+        </div>
+        <div class="gauge-card">
+            <div class="gauge-title"><i class="fa-solid fa-weight-scale"></i> Ağırlık</div>
+            <div class="gauge-value-display"><span>{{ latest_reading.snow_weight_kg|floatformat:1 }}</span><span class="unit">kg</span></div>
+            <div class="gauge-visualizer" id="weight-gauge"></div>
+        </div>
+
+        <!-- HESAPLANAN DEĞER KARTLARI -->
+        <div class="info-card">
+            <h3><i class="fa-solid fa-ruler-vertical"></i> Kar Yüksekliği</h3>
+            <div class="value">{{ latest_reading.snow_height_mm|floatformat:1 }} <span class="unit">mm</span></div>
+        </div>
+        <div class="info-card">
+            <h3><i class="fa-solid fa-cube"></i> Kar Yoğunluğu</h3>
+            <div class="value">{{ latest_reading.snow_density_kg_m3|floatformat:1 }} <span class="unit">kg/m³</span></div>
+        </div>
+         <div class="info-card">
+            <h3><i class="fa-solid fa-droplet"></i> Kar Su Eşdeğeri (SWE)</h3>
+            <div class="value">{{ latest_reading.swe_mm|floatformat:1 }} <span class="unit">mm</span></div>
+        </div>
+
+        <!-- TABLO KARTI -->
         <div class="table-container">
+            <h2 class="section-title" style="margin-top: 0;"><i class="fa-solid fa-history"></i> Son Ölçüm Kayıtları</h2>
             <table>
                 <thead>
                     <tr><th>Kayıt Tarihi</th><th>Sıcaklık</th><th>Nem</th><th>Kar Yüksekliği</th><th>Yoğunluk</th><th>SWE</th></tr>
@@ -107,36 +150,66 @@
                 </tbody>
             </table>
         </div>
-    </section>
-{% else %}
-    <div class="card-grid"><div class="info-card"><h3>Veri Bekleniyor...</h3><p>Sistem henüz bir ölçüm kaydetmedi. Lütfen bir sonraki veri toplama döngüsünü bekleyin.</p></div></div>
-{% endif %}
+    {% else %}
+        <div class="info-card" style="grid-column: 1 / -1;"><h3>Veri Bekleniyor...</h3><p>Sistem henüz bir ölçüm kaydetmedi. Lütfen bir sonraki veri toplama döngüsünü bekleyin.</p></div>
+    {% endif %}
+</section>
 {% endblock %}
 
 {% block javascript %}
 {{ latest_reading|json_script:"latest-reading-data" }}
 <script>
+    // Gauge'ları güncelleyen fonksiyon
     function updateGauge(gaugeId, value, min, max) {
         const gaugeElement = document.getElementById(gaugeId);
         if (!gaugeElement || value === null) return;
         const percentage = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
         let color = 'var(--primary-color)';
-        if (gaugeId === 'temp-gauge') {
-            if (value > 25) color = 'var(--danger-color)';
-            else if (value > 0) color = 'var(--warning-color)';
+        if (gaugeId === 'temp-gauge' && value > 0) {
+            color = 'var(--warning-color)';
         }
         gaugeElement.style.background = `conic-gradient(${color} ${percentage * 3.6}deg, var(--border-color) 0deg)`;
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        // Sensör gauge'larını güncelle
         const dataElement = document.getElementById('latest-reading-data');
         if (dataElement) {
             const reading = JSON.parse(dataElement.textContent);
             updateGauge('temp-gauge', reading.temperature_c, -40, 40);
             updateGauge('hum-gauge', reading.humidity_percent, 0, 100);
-            updateGauge('dist-gauge', reading.distance_mm, 0, 4000); 
             updateGauge('weight-gauge', reading.snow_weight_kg, 0, 100);
         }
+
+        // Snapshot butonu için olay dinleyici
+        const snapshotBtn = document.getElementById('snapshot-btn');
+        const snapshotStatus = document.getElementById('snapshot-status');
+
+        snapshotBtn.addEventListener('click', () => {
+            snapshotBtn.disabled = true;
+            snapshotStatus.innerHTML = 'Görüntü alınıyor...';
+
+            fetch("{% url 'snapshot' %}")
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        snapshotStatus.innerHTML = `Başarılı! Yükseklik: ${data.height}. <a href="${data.url}" target="_blank">Görüntüle</a>`;
+                    } else {
+                        snapshotStatus.textContent = `Hata: ${data.message}`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Snapshot error:', error);
+                    snapshotStatus.textContent = 'İstek gönderilirken bir hata oluştu.';
+                })
+                .finally(() => {
+                    // Butonu 3 saniye sonra tekrar aktif et
+                    setTimeout(() => {
+                        snapshotBtn.disabled = false;
+                        // snapshotStatus.innerHTML = '';
+                    }, 3000);
+                });
+        });
     });
 </script>
 {% endblock %}

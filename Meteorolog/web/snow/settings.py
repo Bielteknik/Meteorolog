@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -113,3 +114,9 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Kaydedilen anlık görüntülerin diskte saklanacağı klasör
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Bu dosyalara web üzerinden erişmek için kullanılacak URL ön eki
+MEDIA_URL = '/media/'
