@@ -27,7 +27,7 @@ class Secrets(BaseSettings):
 # --- config.yaml dosyasından okunacak Ayarlar için Modeller ---
 class StationConfig(BaseModel):
     id: str
-    measurement_area_m2: float
+    measurement_area_m2: int
 
 class SensorsConfig(BaseModel):
     height_sensor_zero_mm: int

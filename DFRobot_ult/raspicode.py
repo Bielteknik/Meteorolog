@@ -3,7 +3,7 @@ import time
 
 def get_distance():
     try:
-        with serial.Serial('/dev/serial0', 9600, timeout=1) as ser:
+        with serial.Serial('/dev/ttyUSB0', 9600, timeout=1) as ser:
             ser.reset_input_buffer()
             start_time = time.time()
             

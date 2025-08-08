@@ -1,3 +1,36 @@
 (ultra) PS C:\Users\kenan\Desktop\Desktop\Meteorology\07.08.2025\Meteorolog> python manage.py drf_create_token admin
 Generated token a0633840e049aa41d0fb39a32696dc7a3605c5eb for user admin
 (ultra) PS C:\Users\kenan\Desktop\Desktop\Meteorology\07.08.2025\Meteorolog> 
+
+
+Raspberry pi + Python + Django üçlüsü ile sıfırdan IOT projesi geliştirmek istiyorum tamamen genişletilebilir, ayarlanabilir, 
+Sistem gerçekten lego gibi olmalı. Tüm tanımlamalar, veriler, ayarlar, hesaplamalar. sensör tanımlamaları veri tabanında tutulacak,
+Örnek bugün HC serisi ttl to USB çıkışlı ultrasonic sensör kullandım. yarın KN marka SPI arayüzlü sensör kullanacağım. Sensörü sisteme tanıtacağım çalıştıracağım. değiştireceğim zaman admin panelden veya web sitemin dashboard sayfasından aktifliğini false yapacağım. Sensörü tekrar kullanmak istediğimde aktifliğini true yapacağım.
+Sensör verilerini istersem uzak bir apiye göndereceğim. web sayfasını canlı ortamda kullancağım.Isı ve nem sensörü çalışmaz ise openweather api kullanacak.
+Hata Yönetimi ve Bildirimler sistemi olacak mail,sms, gibi. 
+Kural Motoru (Rules Engine) olacak istediğim kuralı oluşturup kullanabilmeliyim.
+Kural motoru "EĞER [koşul1] VE [koşul2] İSE [eylem1] AMA [koşul3] GERÇEKLEŞİRSE [eylem2]'Yİ ÇALIŞTIR" gibi olacak.
+Veri Saklama Süresi fizksel alanın boyutuyla ilgili veri silme yok.
+Anomali takibi sensör veya ölçülen değerle alakalı olacak. Sensör arızası, ölçüm hatası gibi durumlarda anomali takibi yapabilmeli.
+uzun süre aynı değeri veren sensörün relay kontrol kartı ile etkileşimde bulunabilmeli. sensörün bağlı olduğu röle tetiklenebilmeli. örneğin 1 dakika sensörün enerji kesilip
+sonra enerji verilip tekrar ölçüm yapılabilmeli. bu sayede sensörün arızalı olup olmadığı kontrol edilebilmeli.
+Sensörlerin max min değerlerini tanımlayabilmeliyim.
+Sensörlerin kalibrasyon ayarlarını yapabilmeliyim. veya test edebilmeliyim.
+Projenin Nihai Amacı yenilenebilir, sürdürülebilir IOT sistem oluşturmak.
+Veri Toplama Sıklığı Ne Olacak admin panelden veya dashboarddan ayarlanabilmeli. başlama bitiş saati dakikası, gün içerisinde veri okuma sıklığı,
+hangi saatlerde veri okuması yapacak, kaç dakikada bir veri okuması yapacak.
+Şimdi şöylede bir durum var. ttl to usb modül kullanılan sensörlerde raspi açılıp kapandığında değişmesi. udev istemiyorum. 
+Veri koklama yapmalı. Yani sisteme sensör taktım, sensörün özelliklerini tanımladım. bir test ortamında ham verileri okuyup ona göre data formatını veya regex yapısını belirleyip.
+Sisteme ham veri bu şekilde gelirse bu verilerin anlamı şunlardır diyebilmeliyim.
+django rest api olmalı. Asenkron veri toplnmalı. sensör bir birinden etkilenmemeli. DRf token olmalı.
+Sensör arızası işte mesaj atamama veya mail gönderememe her hangi bir sebeple program kapatılmasın. kod kırılmasın, ayrı bir vertabanına log tutalım.
+Bu sistem birden çok raspberry pi veya daha farklı modüllerde çalışabilir. Aralarında loraWan, wifi, rf ile iletişim sağlanabilir.
+Kamera ile hem canlı izleme hemde periyodik fotoğraf çekmek istiyorum.
+"pyserial kütüphanesinin serial.tools.list_ports.comports() fonksiyonu, bağlı olan tüm seri cihazların port, VID, PID gibi bilgilerini liste olarak döner.
+Çözüm: Sensör tanımını yaparken (Django Admin'de), cihazın VID ve PID'sini de config JSON'ına kaydedin. Veri okuma script'iniz, comports() 
+ile tüm portları tarar, verdiğiniz VID/PID ile eşleşen portu bulur ve onu kullanır. Bu sayede cihazın /dev/ttyUSB0 veya /dev/ttyUSB1 olması önemsiz hale gelir.
+kesinlikle olmalı"
+Çevrimdışı Çalışma (Offline Capability): Bir Raspberry Pi, merkezi sunucuya (Django) ulaşamadığında
+Verileri yerel olarak biriktirip bağlantı geldiğinde toplu olarak göndermeli.
+Sistem tek başına ve birlikte çalışabilmeli.
+Eklemek istediklerin var mı? Ne anladın? Soruların var mı?
